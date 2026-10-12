@@ -265,15 +265,16 @@ class OrdsTemplateDeliveryTests(unittest.TestCase):
             "migrations/2026-09-27_create-customers-r001/status.dev.json": "{\"state\":\"verified\"}\n",
         }
         old_template_files = {path: "old template version\n" for path in ORDS_TEMPLATE_FILES if not path.startswith(("tests/test_ords", "tests/ords_", "tests/fake_ords", "docs/ords-export", "scripts/ords_", "scripts/verify_ords", "scripts/doctor_ords"))}
+        git_attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             template, project = base / "template", base / "project"
             init(template)
-            put(template, {"template-manifest.json": manifest_text, ".gitignore": ".env\n", **placeholders, **old_template_files})
+            put(template, {"template-manifest.json": manifest_text, ".gitattributes": git_attributes, ".gitignore": ".env\n", **placeholders, **old_template_files})
             git(template, "add", "-A")
             git(template, "commit", "-q", "-m", "v1")
             init(project)
-            put(project, {"template-manifest.json": manifest_text, ".gitignore": ".env\n", **placeholders, **old_template_files, **{k: v for k, v in project_data.items() if k != ".env"}})
+            put(project, {"template-manifest.json": manifest_text, ".gitattributes": git_attributes, ".gitignore": ".env\n", **placeholders, **old_template_files, **{k: v for k, v in project_data.items() if k != ".env"}})
             git(project, "add", "-A")
             git(project, "commit", "-q", "-m", "created from template")
             put(project, {".env": project_data[".env"]})

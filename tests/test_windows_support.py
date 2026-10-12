@@ -132,6 +132,17 @@ class TeamPowerShellVerifyCommandTests(unittest.TestCase):
 class TeamPowerShellRolloutCommandTests(unittest.TestCase):
     """The PowerShell entry point exposes the same rollout contract as Bash."""
 
+    def test_bash_help_describes_rollout_options(self):
+        result = subprocess.run(
+            [sqlcl_session.bash_command(), str(ROOT / "scripts" / "team.sh"), "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]", result.stdout)
+
     def engines(self):
         return [
             engine
@@ -173,7 +184,10 @@ class TeamPowerShellRolloutCommandTests(unittest.TestCase):
                     check=False,
                 )
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-                self.assertIn("usage: scripts/team.ps1 rollout", result.stderr)
+                self.assertIn(
+                    "usage: scripts/team.ps1 rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]",
+                    result.stderr,
+                )
 
     def test_help_documents_preflight_inventory_retry_setting(self):
         text = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")

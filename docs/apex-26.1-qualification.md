@@ -21,7 +21,7 @@ and APEX entry points rather than application-specific behavior.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Offline suite | N/A | N/A | N/A | 26.3.0.0 installed | Linux; `codex/apex-26.1` | **Pass:** `python3 -m unittest discover -s tests` — 1,080 tests passed, 26 skipped; `git diff --check` passed. | No database fixture |
 | Local isolated target `local-apex-261` | Oracle Free image `23.26.3.0`; PDB `FREEPDB1` | `26.1.5`; patch `39179920`, version 5 | Image `26.3.0` | 26.3.0.0 | Linux; code commit `70e5a3a` | **Pass for installation and read-only smoke checks.** Evidence below. | Retained new volume `oradata-apex261`; no fixture schema created. Existing 26.2 containers remain stopped and their `oradata-26ai` volume is preserved. |
-| Windows target | Unknown | Unknown | Unknown | Unknown | Windows host unavailable; available PowerShell launchers are under `/snap/bin` and excluded by native-runtime tests | **Not-run.** Windows PowerShell/runtime qualification remains open. | No target available |
+| Windows offline suite | N/A | N/A | N/A | 26.3.0.0 installed; no database session used | Windows `10.0.26300`; `codex/apex-26.1` worktree based on `423573d`; Python 3.14.5; Windows PowerShell 5.1.26100.9444 and PowerShell 7.6.5; Git for Windows 2.54.0 | **Pass (offline only):** `py -3 -m unittest discover -s tests -v` — 1,076 tests passed, 45 skipped; `git diff --check` passed. | No Docker container, volume, database, or APEX application was changed |
 
 ## Live target evidence
 
@@ -53,6 +53,7 @@ and APEX entry points rather than application-specific behavior.
 
 - The live check does not qualify importing or exporting a project application,
   migrations, workflow execution, or application-specific APEXlang behavior.
-- The offline suite uses fake SQLcl sessions and catalog fixtures; it does not
-  replace live qualification. Windows PowerShell/runtime qualification remains
-  open.
+- Both offline suite rows use fake SQLcl sessions and catalog fixtures; they do
+  not replace live qualification. The Windows run qualified the native Windows
+  PowerShell and Git Bash paths only at the test-suite level; it did not use the
+  local Docker target or repeat the live database/browser smoke checks.

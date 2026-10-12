@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -185,7 +186,23 @@ class MigrationRehearsalTests(unittest.TestCase):
         self.assertTrue(self.check_drivers)
         self.assertTrue(all("SET TRANSACTION READ ONLY" not in check for check in self.check_drivers))
         self.assertTrue(all("EXIT SUCCESS ROLLBACK" not in check for check in self.check_drivers))
-        self.assertEqual(report_path.stat().st_mode & 0o777, 0o600)
+        if os.name == "nt":
+            acl_snapshot = report_path.with_name("rehearsal-acl.txt")
+            acl_result = subprocess.run(
+                ["icacls.exe", str(report_path), "/save", str(acl_snapshot)],
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+            self.assertEqual(0, acl_result.returncode, acl_result.stdout + acl_result.stderr)
+            self.assertTrue(acl_snapshot.is_file(), "icacls did not save the report's DACL")
+            acl_sddl = acl_snapshot.read_bytes().decode("utf-16le")
+            self.assertIn(";;;OW)", acl_sddl, acl_sddl)  # Owner Rights; the temp checkout is owned by this user.
+            for broad_ace in (";;;WD)", ";;;AU)", ";;;BU)"):
+                with self.subTest(broad_ace=broad_ace):
+                    self.assertNotIn(broad_ace, acl_sddl, acl_sddl)
+        else:
+            self.assertEqual(report_path.stat().st_mode & 0o777, 0o600)
         report = json.loads(report_path.read_text(encoding="utf-8"))
         self.assertEqual(report["rollbackProof"]["status"], "true")
         self.assertEqual([folder["postconditions"]["status"] for folder in report["folders"]], ["true", "true"])

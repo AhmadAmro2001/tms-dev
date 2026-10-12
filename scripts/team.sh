@@ -18,7 +18,8 @@ Commands:
   revise --check <folder>                     Report whether local attempt/receipt evidence locks a folder
   verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed]
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
-  rollout <manifest> --env <env>             Confirm and execute a frozen deployment manifest
+  rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]
+                                              Confirm and execute a frozen deployment manifest
   compare-schema [--from <env>] (--to <env>|--env <env>)
                 (--object <name>|--pattern <glob>) [...] [--format text|json]
                                               Compare selected live schema objects read-only
@@ -218,7 +219,7 @@ case "$command_name" in
       exec "$REPO_ROOT/scripts/verify_checks.sh" "$@"
     ;;
   rollout)
-    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh rollout <manifest> --env <env>"
+    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]"
     PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}" \
       exec "$REPO_ROOT/scripts/rollout.sh" "$@"
     ;;
