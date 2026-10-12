@@ -2,34 +2,57 @@
 
 ## Scope
 
-This work is on the documented `codex/apex-26.1` release branch, based at
-`5178f57a56d919337d1e7d23fc809275cfb8488e`. The qualification below records
-the candidate tree built from that base plus this backport. The port keeps the
-APEX 26.1 descriptor contract and does not introduce APEX 26.2 APIs. It carries
-selected release-neutral migration safety improvements:
-read-only verification, frozen rollout, DML rehearsal, safe next-revision
-creation, honest apply-not-started classification, and stable catalog
-preflight with direct synonym/grant evidence.
+This qualifies the candidate on `codex/apex-26.1` at code commit `70e5a3a`,
+based on `5178f57a56d919337d1e7d23fc809275cfb8488e`. The port preserves the
+APEX 26.1 descriptor contract and avoids APEX 26.2 APIs. It carries selected
+release-neutral migration safety improvements: read-only verification, frozen
+rollout, DML rehearsal, safe next-revision creation, honest apply-not-started
+classification, and stable catalog preflight with direct synonym/grant
+evidence.
 
 The separate `compare-env` and baseline-capture tools are outside this
-backport's scope; they are standalone features rather than requirements for
-APEX 26.1 compatibility. No APEX export/import was run.
+backport's scope. No project APEX application import/export or migration was
+run; the live checks below qualify the target installation, database identity,
+and APEX entry points rather than application-specific behavior.
 
 ## Qualification matrix
 
-| Database | APEX | ORDS | SQLcl | OS | Branch / base commit | Tested scope and outcome | Cleanup |
+| Target | Database | APEX | ORDS | SQLcl | OS / branch | Outcome | Cleanup |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| No database session | Not exercised | Not exercised | 26.3.0.0 installed; no live SQLcl session | Linux; Python 3.14.4 | `codex/apex-26.1`; base `5178f57a56d919337d1e7d23fc809275cfb8488e` | **Pass offline:** `python3 -m unittest discover -s tests` — 1,079 tests passed, 26 skipped. `git diff --check`, Bash syntax, Python compilation and five JSON parses passed; Ruff unavailable | No database fixture or generated database state |
-| Oracle Free image `23.26.3.0` | Not confirmed as 26.1 | ORDS image `26.3.0` | 26.3.0.0 installed | Linux | `codex/apex-26.1`; base `5178f57a56d919337d1e7d23fc809275cfb8488e` | **Not-run.** Image tags do not establish an installed APEX release, and no database session was opened | No fixture created; no cleanup required |
-| Windows target | Unknown | Unknown | Unknown | Windows host unavailable; available PowerShell launchers are under `/snap/bin` and excluded by the project's native-runtime tests | `codex/apex-26.1`; base `5178f57a56d919337d1e7d23fc809275cfb8488e` | **Not-run.** Windows PowerShell/runtime qualification remains open | No fixture created; no cleanup required |
+| Offline suite | N/A | N/A | N/A | 26.3.0.0 installed | Linux; `codex/apex-26.1` | **Pass:** `python3 -m unittest discover -s tests` — 1,080 tests passed, 26 skipped; `git diff --check` passed. | No database fixture |
+| Local isolated target `local-apex-261` | Oracle Free image `23.26.3.0`; PDB `FREEPDB1` | `26.1.5`; patch `39179920`, version 5 | Image `26.3.0` | 26.3.0.0 | Linux; code commit `70e5a3a` | **Pass for installation and read-only smoke checks.** Evidence below. | Retained new volume `oradata-apex261`; no fixture schema created. Existing 26.2 containers remain stopped and their `oradata-26ai` volume is preserved. |
+| Windows target | Unknown | Unknown | Unknown | Unknown | Windows host unavailable; available PowerShell launchers are under `/snap/bin` and excluded by native-runtime tests | **Not-run.** Windows PowerShell/runtime qualification remains open. | No target available |
+
+## Live target evidence
+
+- The official APEX 26.1 base archive matched SHA-256
+  `06df14e7c8465747ee45c36c5a0b09821bf2b244db0e201d3cc44abb0403f023`.
+  The Dropbox patch archive matched SHA-256
+  `597df8641d0deb02c8be5774225c4f8d7f742500dadd81a7810c239ee80ccd17` and
+  passed ZIP integrity validation. Its README identifies APEX 26.1.5, patch
+  `39179920`, patch version 5, dated September 25, 2026. Oracle's download
+  page lists the bundle as updated September 30, 2026, so the installed patch
+  version is verified from the database, while the local archive's freshness
+  against that later listing is not independently established.
+- SQLcl reports `DBA_REGISTRY` APEX version `26.1.5`, status `VALID`, schema
+  `APEX_260100`; `APEX_PATCHES` contains patch `39179920`, version `5`,
+  installed October 12, 2026; `APEX_RELEASE` reports `26.1.5` and
+  APEXlang `26.1.0+3102`. The `APEX_260100` schema has zero invalid objects.
+- ORDS reports its default pool as `VALID`. `GET /i/apex_version.js` returns
+  HTTP 200 and reports `26.1.5`. The modern Builder route
+  `/ords/r/apex/app-builder/home` and Instance Administration route
+  `/ords/r/apex/instance-admin` each reach their sign-in page. The legacy
+  `/ords/apex` and `/ords/apex_admin` paths returned HTTP 404 in this setup.
+- `scripts/team.sh doctor` passed using the saved local connection
+  `local-apex261-sys` and a temporary read-only profile; output included
+  `APEX_DOCTOR_VERIFIED:SYS`. The documented `verify-local` command is not
+  exposed by this release branch's `team.sh` CLI, so that command could not be
+  run here.
 
 ## Limits and remaining gate
 
-- The offline suite uses fake SQLcl sessions and catalog fixtures. It does not
-  prove Oracle catalog SQL compiles, SQLcl 26.1 behavior, ORDS export behavior,
-  APEX 26.1 import/export behavior, or Windows PowerShell behavior.
-- No database, schema, application, ORDS module, or deployment target was
-  changed. There is no live comparison result to report.
-- The APEX 26.1 runtime row remains **not-run** until its exact database/APEX/
-  ORDS/SQLcl tuple and a named disposable target are verified. Any later live
-  qualification must record the tested command scope and prove fixture cleanup.
+- The live check does not qualify importing or exporting a project application,
+  migrations, workflow execution, or application-specific APEXlang behavior.
+- The offline suite uses fake SQLcl sessions and catalog fixtures; it does not
+  replace live qualification. Windows PowerShell/runtime qualification remains
+  open.

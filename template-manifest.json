@@ -45,6 +45,7 @@
     "migrations/.gitkeep"
   ],
   "templateOnly": [
+    "docs/apex-26.1-qualification.md",
     "docs/superpowers/**"
   ]
 }
