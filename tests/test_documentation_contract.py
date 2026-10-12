@@ -96,6 +96,9 @@ class DocumentationContractTests(unittest.TestCase):
             "publish 100",
             "check-conflicts",
             "team.sh migrate",
+            "team.sh revise",
+            "team.sh rollout",
+            "--rehearse",
             "--env dev",
             "compare-schema",
             "status.<env>.json",
@@ -119,11 +122,22 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn(".template-new", readme)
         self.assertIn("python3 /tmp/apex-template/scripts/upgrade_template.py", readme)
         self.assertIn("2026-09-27_create-customers-r001", readme)
+        self.assertIn("apply-not-started", readme)
         migration_guide = contents[ROOT / "docs" / "migration-rules.md"]
+        self.assertIn("MIGRATION_PAYLOAD_STARTED", migration_guide)
+        self.assertIn("ORA-20987", migration_guide)
+        self.assertIn("1,856", migration_guide)
         self.assertIn("other developers' pending files", migration_guide)
         self.assertIn("status.<env>.json", migration_guide)
         self.assertIn("STAGING_SCHEMA", migration_guide)
         self.assertIn("cannot reliably prove", readme)
+        self.assertIn("## Rollout", migration_guide)
+        self.assertIn("one manifest-level confirmation", migration_guide)
+        self.assertIn("rollout-manifest.example.json", migration_guide)
+        limitations = contents[ROOT / "docs" / "known-limitations.md"]
+        for limitation in ("whitespace-only lines", "trailing hyphen", "DBMS_LOB.APPEND", "five-minute", "patch levels"):
+            with self.subTest(limitation=limitation):
+                self.assertIn(limitation, limitations)
 
     def test_publish_guide_explains_every_refusal_and_is_linked(self) -> None:
         guide = (ROOT / "docs" / "publish-rules.md").read_text(encoding="utf-8")
@@ -184,10 +198,39 @@ class DocumentationContractTests(unittest.TestCase):
             "not reliable migration-file attribution",
             "can mimic a migration",
             "cannot set the browser's sort direction",
+            "apply-not-started",
+            "revise --check",
+            "MIGRATION_PAYLOAD_STARTED",
+            "committed-source-or-payload-changed",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, guide)
         self.assertNotIn("migrations/<developer>/", guide)
+
+    def test_preflight_retry_setting_and_synonym_evidence_are_documented(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        rules = (ROOT / "docs" / "migration-rules.md").read_text(encoding="utf-8")
+        limitations = (ROOT / "docs" / "known-limitations.md").read_text(encoding="utf-8")
+        env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        bash_wrapper = (ROOT / "scripts" / "team.sh").read_text(encoding="utf-8")
+        powershell_wrapper = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")
+        bash_loader = (ROOT / "scripts" / "load_env.sh").read_text(encoding="utf-8")
+        powershell_loader = (ROOT / "scripts" / "load_env.ps1").read_text(encoding="utf-8")
+        help_result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "team.sh"), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        for text in (readme, rules, env_example, bash_wrapper, powershell_wrapper, bash_loader, powershell_loader, help_result.stdout):
+            with self.subTest(setting="MIGRATION_PREFLIGHT_INVENTORY_RETRIES"):
+                self.assertIn("MIGRATION_PREFLIGHT_INVENTORY_RETRIES", text)
+        self.assertIn("default is `3` retries", rules)
+        self.assertIn("status", rules)
+        self.assertIn("fingerprint", rules)
+        self.assertIn("one direct", limitations)
 
     def test_ci_runs_behavioral_unittest_suite(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "database-checks.yml").read_text(encoding="utf-8")

@@ -64,6 +64,45 @@ class TemplateManifestTests(unittest.TestCase):
     def test_tracked_files_are_not_ambiguously_owned_and_protected_paths_are_unowned(self) -> None:
         self.assert_tracked_ownership_valid(self.tracked)
 
+    def test_read_only_verifier_files_are_covered_by_template_ownership(self) -> None:
+        for path in (
+            "scripts/verify_checks.py",
+            "scripts/verify_checks.sh",
+            "tests/test_verify_checks.py",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+
+    def test_rollout_files_are_covered_by_template_ownership(self) -> None:
+        for path in (
+            "scripts/rollout.py",
+            "scripts/rollout.sh",
+            "tests/test_rollout.py",
+            "docs/rollout-manifest.example.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+
+    def test_migration_revision_files_are_covered_by_template_ownership(self) -> None:
+        for path in (
+            "scripts/migration_revision.py",
+            "tests/test_migration_revision.py",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+
+    def test_preflight_catalog_and_recorded_fixtures_are_template_owned(self) -> None:
+        for path in (
+            "scripts/schema_catalog.py",
+            "scripts/schema_catalog.sql",
+            "scripts/migration_checks.py",
+            "tests/test_schema_catalog.py",
+            "tests/test_migration_checks.py",
+            "tests/fixtures/schema_catalog/view-synonyms.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+
     def test_every_non_project_template_file_has_exactly_one_owner(self) -> None:
         for path in self.tracked:
             if protected_project_path(path):

@@ -25,6 +25,7 @@
     "docs/migration-rules.md",
     "docs/ords-export.md",
     "docs/publish-rules.md",
+    "docs/rollout-manifest.example.json",
     "migrations/README.md",
     "pyproject.toml",
     "scripts/**",

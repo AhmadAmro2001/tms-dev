@@ -17,6 +17,7 @@ separate file changes only and do not isolate a shared APEX application.
 | do a specific task, step by step | [Examples](docs/EXAMPLES.md) |
 | understand an error message | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | look up a command | [Command reference](#command-reference) |
+| see the 26.1 backport qualification | [APEX 26.1 qualification](docs/apex-26.1-qualification.md) |
 | know exactly when publish or migrate refuses | [publish-rules](docs/publish-rules.md), [migration-rules](docs/migration-rules.md) |
 | know which limits are deliberate | [Known limitations](docs/known-limitations.md) |
 | see what an AI assistant can do here | [Skills and agent support](#skills-and-agent-support) |
@@ -373,7 +374,32 @@ command-line order. `create-customers-r001` and
 `2026-09-28_create-customers-r002` are separate sequential migrations; the
 second contains the follow-up change. Keep a migration and its `checks.json`
 immutable once an apply attempt may have started. A recovery belongs in the
-next revision.
+next revision. Use `scripts/team.sh revise <folder> [--reason TEXT]` to copy
+the SQL files and checks into the next revision, preserve their names and
+numbering, and add a `Supersedes` line to the new README. The source remains
+unchanged and receipts are not copied. `revise --check <folder>` inspects local
+attempt and receipt evidence without connecting; it exits 0 for unlocked, 1
+for locked, and 2 when evidence is unknown or unreadable. See the
+[migration rules](docs/migration-rules.md) for its limits and the exact
+`apply-not-started` classification.
+
+For eligible data changes, rehearse ordered folders against the configured
+target and save a JSON report:
+
+```bash
+scripts/team.sh migrate \
+  migrations/2026-09-27_seed-customers-r001 \
+  migrations/2026-09-28_assign-customers-r001 \
+  --env dev --rehearse --report scratch/customer-seed-rehearsal.json
+```
+
+Rehearsal runs analyzer-approved DML files in one SQLcl transaction,
+evaluates postconditions in that transaction, then rolls back and rechecks
+preconditions. DDL, implicit-commit statements, and files the analyzer cannot
+prove transaction-safe are skipped and reported as `not rehearsable`. It
+creates no migration receipt or write-attempt marker. See the
+[migration rules](docs/migration-rules.md) for the classification, rollback
+proof, report fields, and exit codes.
 
 Run a selected live preflight and apply with an explicit environment:
 
@@ -389,7 +415,9 @@ compares the selected batch with the target catalog, but cannot see pending
 files in another developer's independent repository. Two developers can pass
 before either writes; preflight runs again before apply, though a concurrent
 change can still race it. See [docs/migration-rules.md](docs/migration-rules.md)
-for coverage and recovery limits.
+for coverage and recovery limits. Live catalog captures retry changing object
+name/type inventories up to `MIGRATION_PREFLIGHT_INVENTORY_RETRIES` times
+(default `3`); the setting is optional in `.env`.
 
 `checks.json` requires read-only preconditions and postconditions.
 `status.<env>.json` appears only after the committed result has been verified
@@ -521,19 +549,32 @@ restore those backups before retrying the upgrade.
 | `scripts/team.sh publish <id> --env dev` | Drift-check and import one app to DEV. |
 | `scripts/team.sh check-conflicts <folder> [...] --env <env>` | Preflight selected migrations against a live schema. |
 | `scripts/team.sh check-conflicts <folder> [...] --local` | Analyze selected migrations without a connection. |
-| `scripts/team.sh migrate <folder> [...] --env <env>` | Verify and apply selected migration folders to DEV, staging, or production. |
+| `scripts/team.sh migrate <folder> [...] --env <env> [--verbose] [--rehearse] [--report <file>]` | Verify and apply selected migration folders, or rehearse eligible DML in one transaction and roll it back. |
+| `scripts/team.sh revise <folder> [--reason TEXT]` | Copy a migration to its next revision; the old folder stays unchanged. |
+| `scripts/team.sh revise --check <folder>` | Report whether local receipt or attempt evidence locks a folder; exit 0/1/2 for unlocked/locked/unknown. |
+| `scripts/team.sh verify <folder> [...] --env <env> [--phase pre\|post\|both] [--only-failed] [--format text\|json] [--jobs N]` | Evaluate migration checks read-only; false checks return 1 and errors return 2. |
+| `scripts/team.sh rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]` | Run a frozen ordered deployment plan; staging and production use one manifest-wide confirmation. |
 | `scripts/team.sh compare-schema --env <env> --object <name>` | Compare selected live schema objects read-only. |
 | `scripts/team.sh backup-db` | Refresh local table and code metadata mirrors (and ORDS, when configured). |
 | `scripts/team.sh backup-ords` | Export ORDS (REST) metadata read-only to `database/<SCHEMA>/ords/schema.sql`. |
 | `scripts/team.sh deploy <id> --env <staging\|prod> [--manual]` | Confirm a promotion or print a DBA runbook. |
 | `scripts/team.sh upgrade-template [--dry-run]` | Update template-owned files; never overwrites project files. |
 
+`verify` uses read-only check sessions, confirms the target identity for every
+session and never applies migration SQL. `rollout` hashes all referenced input
+files before execution, stops at the first failed step and records private
+receipts under `scratch/`. A resume requires matching receipts for the same
+manifest, environment and source hashes. `--dry-run` validates the manifest
+and prints its hashes without running steps. See the [rollout rules and
+manifest schema](docs/migration-rules.md#rollout) and the
+[example manifest](docs/rollout-manifest.example.json).
+
 Exit status, the same in Bash and PowerShell:
 
 | Status | Meaning |
 | --- | --- |
-| 0 | Done; for `check-conflicts` and `compare-schema`, nothing found. |
-| 1 | `check-conflicts` found conflicts or `compare-schema` found differences; a `[y/N]` prompt was declined; `upgrade-template` left `.template-new` files to merge; or `.env` is invalid (`project environment error: ...`). |
+| 0 | Done; for `check-conflicts` and `compare-schema`, nothing found; for `revise --check`, the folder is unlocked. |
+| 1 | `check-conflicts` found conflicts, `compare-schema` found differences, `verify` found false checks, `revise --check` found a lock, a `[y/N]` prompt was declined, `upgrade-template` left `.template-new` files to merge, or `.env` is invalid (`project environment error: ...`). |
 | 2 | Refused or failed; the message says why and what changed. Also `migrate` interrupted while a SQL step runs ("may be partially applied"). |
 | 130 / 143 | Stopped by Ctrl-C / by SIGTERM (`kill`). |
 

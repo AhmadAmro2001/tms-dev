@@ -36,8 +36,13 @@ Commands:
   publish <app_id> [--env dev] [--force]      Drift-check and import to DEV
   check-conflicts <folder> [...] (--env <env>|--local)
                                               Preflight selected migrations against local/live scope
-  migrate <folder> [...] --env dev|staging|prod
-                                              Preflight, then apply selected migration folders
+  migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
+                                              Apply, or rehearse DML in one transaction and roll it back
+  revise <folder> [--reason TEXT]             Copy to the next migration revision
+  revise --check <folder>                     Report whether local attempt/receipt evidence locks a folder
+  verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed]
+         [--format text|json] [--jobs N]     Evaluate migration checks read-only
+  rollout <manifest> --env <env>             Confirm and execute a frozen deployment manifest
   compare-schema [--from <env>] (--to <env>|--env <env>)
                 (--object <name>|--pattern <glob>) [...] [--format text|json]
                                               Compare selected live schema objects read-only
@@ -50,6 +55,8 @@ Commands:
 Options:
   --schema <NAME>                             Run one configured schema (any command except upgrade-template)
   --help                                      Show this help
+Environment:
+  MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
 "@ | Write-Output
 }
 
@@ -313,8 +320,40 @@ try {
       Invoke-TeamBash -ScriptName "check_conflicts.sh" -ScriptArguments @($Arguments | ForEach-Object { ConvertTo-MigrationFolderArgument $_ })
     }
     "migrate" {
-      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 migrate <migration-folder> [...] --env dev|staging|prod" }
-      Invoke-TeamBash -ScriptName "migrate.sh" -ScriptArguments @($Arguments | ForEach-Object { ConvertTo-MigrationFolderArgument $_ })
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 migrate <migration-folder> [...] --env dev|staging|prod [--rehearse] [--report <file>]" }
+      $migrateArguments = @($Arguments)
+      for ($migrateIndex = 0; $migrateIndex -lt $migrateArguments.Count; $migrateIndex++) {
+        if ($migrateArguments[$migrateIndex] -ceq "--report" -and $migrateIndex + 1 -lt $migrateArguments.Count) {
+          $migrateIndex++
+          $migrateArguments[$migrateIndex] = ConvertTo-MigrationFolderArgument ([string] $migrateArguments[$migrateIndex])
+        } elseif ([string] $migrateArguments[$migrateIndex] -clike "--report=*") {
+          $reportValue = ([string] $migrateArguments[$migrateIndex]).Substring("--report=".Length)
+          $migrateArguments[$migrateIndex] = "--report=" + (ConvertTo-MigrationFolderArgument $reportValue)
+        } elseif (-not ([string] $migrateArguments[$migrateIndex]).StartsWith("-")) {
+          $migrateArguments[$migrateIndex] = ConvertTo-MigrationFolderArgument ([string] $migrateArguments[$migrateIndex])
+        }
+      }
+      Invoke-TeamBash -ScriptName "migrate.sh" -ScriptArguments $migrateArguments
+    }
+    "revise" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 revise <folder> [--reason TEXT] | revise --check <folder>" }
+      $revisionArguments = @($Arguments)
+      if ($revisionArguments[0] -ceq "--check") {
+        if ($revisionArguments.Count -lt 2) { Fail "usage: scripts/team.ps1 revise --check <folder>" }
+        $revisionArguments[1] = ConvertTo-MigrationFolderArgument ([string] $revisionArguments[1])
+      } else {
+        $revisionArguments[0] = ConvertTo-MigrationFolderArgument ([string] $revisionArguments[0])
+      }
+      $teamArguments = @("revise") + $revisionArguments
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments $teamArguments
+    }
+    "verify" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed] [--format text|json] [--jobs N]" }
+      Invoke-TeamBash -ScriptName "verify_checks.sh" -ScriptArguments @($Arguments | ForEach-Object { ConvertTo-MigrationFolderArgument $_ })
+    }
+    "rollout" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 rollout <manifest> --env <env>" }
+      Invoke-TeamBash -ScriptName "rollout.sh" -ScriptArguments $Arguments
     }
     "compare-schema" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 compare-schema [--from <env>] (--to <env>|--env <env>) (--object <name>|--pattern <glob>) [...]" }

@@ -69,11 +69,12 @@ class SqlDriverContractTests(unittest.TestCase):
         first_include = next(index for index, line in enumerate(lines) if line.startswith("@@schema_catalog.sql"))
         self.assertIn("SET DDL INSERT OFF", lines[:first_include])
 
-    def test_a_clob_chunk_buffer_holds_the_bytes_of_the_characters_it_is_filled_with(self) -> None:
+    def test_character_chunk_buffers_hold_the_bytes_of_the_characters_they_receive(self) -> None:
         # DBMS_LOB.SUBSTR counts characters; a VARCHAR2 variable counts bytes
         # here. A 4000-character chunk of UTF-8 text with accented letters is more
         # than 4000 bytes, so ORA-06502 ended a catalog read after the migration
-        # had already committed an object whose name or DDL held one.
+        # had already committed an object whose name or DDL held one. The catalog
+        # driver now emits gzip/base64 from a BLOB and has a separate byte-path test.
         checked = 0
         # The drivers are SQL files, and Python builds one more (the migration checks).
         for path in sorted((ROOT / "scripts").glob("*.sql")) + sorted((ROOT / "scripts").glob("*.py")):
@@ -85,7 +86,18 @@ class SqlDriverContractTests(unittest.TestCase):
                     with self.subTest(driver=path.name, buffer=name):
                         self.assertGreaterEqual(size, 4 * int(fill.group(1)), f"{name} VARCHAR2({size}) cannot hold {fill.group(1)} four-byte characters")
                         self.assertLessEqual(size, 32767)
-        self.assertGreaterEqual(checked, 3, "the chunking loops were not found; update this test")
+        self.assertGreaterEqual(checked, 2, "the character chunking loops were not found; update this test")
+
+    def test_catalog_driver_transcodes_utf8_clob_to_binary_before_base64_chunking(self) -> None:
+        contents = (ROOT / "scripts" / "schema_catalog.sql").read_text(encoding="utf-8")
+        self.assertIn("blob_csid    => NLS_CHARSET_ID('AL32UTF8')", contents)
+        self.assertIn("l_gzip := UTL_COMPRESS.LZ_COMPRESS(l_blob)", contents)
+        self.assertRegex(contents, r"l_piece\s+RAW\(12000\)")
+        self.assertRegex(contents, r"l_chunk\s+VARCHAR2\(32767\)")
+        self.assertIn("l_piece := DBMS_LOB.SUBSTR(l_gzip, 12000, l_pos)", contents)
+        self.assertIn("l_pos := l_pos + UTL_RAW.LENGTH(l_piece)", contents)
+        self.assertIn("CATALOG_ENCODING:gzip-base64-v1", contents)
+        self.assertGreaterEqual(32767, 4 * 12000 // 3)
 
     def test_the_catalog_driver_lifts_the_dbms_output_cap_before_it_prints_the_payload(self) -> None:
         # SQLcl's SERVEROUTPUT SIZE UNLIMITED still leaves a 1,000,000-byte buffer

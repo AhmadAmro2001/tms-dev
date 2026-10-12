@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
+import signal
 import shutil
 import subprocess
 import time
@@ -92,6 +94,29 @@ class SqlclError(RuntimeError):
         super().__init__(f"{message}; diagnostics: {run_dir / 'sqlcl-output.log'}")
 
 
+class SqlclTimeout(SqlclError):
+    """SQLcl exceeded its configured limit during a named workflow phase."""
+
+    def __init__(
+        self,
+        run_dir: Path,
+        *,
+        phase: str,
+        timeout_seconds: float,
+        elapsed_seconds: float,
+        output: str = "",
+    ) -> None:
+        self.phase = phase
+        self.timeout_seconds = timeout_seconds
+        self.elapsed_seconds = elapsed_seconds
+        super().__init__(
+            f"SQLcl {phase} session timed out; cut off after {timeout_seconds:g} s "
+            f"(elapsed {elapsed_seconds:.2f} s)",
+            run_dir,
+            output,
+        )
+
+
 def _run_bridge(command: list[str], *, cwd: Path, env: Mapping[str, str], timeout_seconds: float) -> subprocess.CompletedProcess:
     """Run the SQLcl bridge with its output (stderr included) as text and nothing on stdin."""
     options = {
@@ -106,7 +131,53 @@ def _run_bridge(command: list[str], *, cwd: Path, env: Mapping[str, str], timeou
     if os.name == "nt":
         # Ctrl-C must end the wait and the SQLcl under the bridge; see windows_job.
         return windows_job.run(command, input_text="", timeout=timeout_seconds, **options)
-    return subprocess.run(command, input="", timeout=timeout_seconds, check=False, **options)
+    # Killing only the Bash bridge leaves its SQLcl/JVM descendants running.
+    # Give this invocation its own process group so timeout/interrupt cleanup
+    # cannot terminate the caller or another developer's SQLcl session.
+    with subprocess.Popen(command, stdin=subprocess.PIPE, start_new_session=True, **options) as process:
+        previous_handlers = {}
+
+        def stop_tree():
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+        def terminate(signum, frame):
+            stop_tree()
+            previous = previous_handlers[signum]
+            if callable(previous):
+                previous(signum, frame)
+            else:
+                signal.signal(signum, signal.SIG_DFL)
+                os.kill(os.getpid(), signum)
+
+        try:
+            # An isolated SQLcl no longer receives the caller's terminal-group
+            # TERM/HUP. Forward termination while preserving the caller's exit
+            # status or existing migration interrupt handler. Only the main
+            # thread can register signal handlers.
+            for signum in (signal.SIGTERM, signal.SIGHUP):
+                previous = signal.getsignal(signum)
+                if previous == signal.SIG_IGN:
+                    continue
+                previous_handlers[signum] = previous
+                try:
+                    signal.signal(signum, terminate)
+                except ValueError:
+                    del previous_handlers[signum]
+                    break
+            output, _ = process.communicate("", timeout=timeout_seconds)
+        except BaseException as error:
+            stop_tree()
+            output, _ = process.communicate()
+            if isinstance(error, subprocess.TimeoutExpired):
+                error.stdout = output
+            raise
+        finally:
+            for signum, previous in previous_handlers.items():
+                signal.signal(signum, previous)
+    return subprocess.CompletedProcess(command, process.returncode, output, None)
 
 
 def run_sqlcl(
@@ -115,15 +186,32 @@ def run_sqlcl(
     run_dir: Path,
     *,
     environment: Mapping[str, str] | None = None,
-    timeout_seconds: float = 300,
+    phase: str | None = None,
+    timeout_seconds: float | None = None,
 ) -> SqlclResult:
     """Run SQLcl by argv in a private CWD; preserve output for every attempt."""
+    run_dir = Path(run_dir)
     if ALIAS_RE.fullmatch(target.connection) is None:
         raise SqlclError("configured SQLcl alias contains unsupported characters", run_dir)
-    if timeout_seconds <= 0:
-        raise SqlclError("SQLcl timeout must be positive", run_dir)
+    if phase not in {None, "apply", "preconditions", "postconditions", "inventory"}:
+        raise SqlclError("SQLcl phase must be apply, preconditions, postconditions, or inventory", run_dir)
 
-    run_dir = Path(run_dir)
+    child_environment = dict(os.environ if environment is None else environment)
+    timeout_key = "MIGRATION_APPLY_TIMEOUT_SECONDS" if phase == "apply" else "MIGRATION_CHECK_TIMEOUT_SECONDS"
+    configured_timeout = child_environment.get(timeout_key) if phase is not None else None
+    timeout_label = timeout_key if phase is not None else "SQLcl timeout"
+    raw_timeout: object = timeout_seconds if timeout_seconds is not None else configured_timeout
+    if raw_timeout is None:
+        effective_timeout = 300.0
+    else:
+        try:
+            effective_timeout = float(raw_timeout)
+        except (TypeError, ValueError) as error:
+            raise SqlclError(f"{timeout_label} must be a positive finite number of seconds", run_dir) from error
+    if not math.isfinite(effective_timeout) or effective_timeout <= 0:
+        raise SqlclError(f"{timeout_label} must be a positive finite number of seconds", run_dir)
+    session_phase = phase or "sqlcl"
+
     if run_dir.is_symlink():
         raise SqlclError("SQLcl working directory cannot be a symlink", run_dir)
     run_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -143,7 +231,8 @@ def run_sqlcl(
         raise SqlclError("SQLcl driver must be a regular file inside its private run directory", run_dir)
 
     bridge = Path(__file__).with_name("sqlcl_session.sh").resolve(strict=True)
-    child_environment = dict(os.environ if environment is None else environment)
+    started = time.monotonic()
+    timeout_elapsed: float | None = None
     try:
         completed = _run_bridge(
             # as_posix: the bridge compares the driver path with the run directory
@@ -152,7 +241,7 @@ def run_sqlcl(
             [bash_command(), bridge.as_posix(), resolved_run.as_posix(), target.connection, resolved_driver.as_posix()],
             cwd=resolved_run,
             env=child_environment,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=effective_timeout,
         )
         output = completed.stdout or ""
         reason = None
@@ -162,11 +251,12 @@ def run_sqlcl(
             reason = "SQLcl reported a database or client error"
         result = SqlclResult(completed.returncode, output, resolved_run)
     except subprocess.TimeoutExpired as error:
+        timeout_elapsed = time.monotonic() - started
         partial = error.stdout or ""
         if isinstance(partial, bytes):
             partial = partial.decode("utf-8", errors="replace")
         output = str(partial)
-        reason = f"SQLcl timed out after {timeout_seconds:g} seconds"
+        reason = "SQLcl timed out"
         result = None
     except OSError as error:
         output = f"unable to start SQLcl: {error}\n"
@@ -181,6 +271,14 @@ def run_sqlcl(
     except OSError as error:
         raise SqlclError(f"could not preserve SQLcl diagnostics ({error})", resolved_run, output) from error
 
+    if timeout_elapsed is not None:
+        raise SqlclTimeout(
+            resolved_run,
+            phase=session_phase,
+            timeout_seconds=effective_timeout,
+            elapsed_seconds=timeout_elapsed,
+            output=output,
+        )
     if reason is not None:
         raise SqlclError(reason, resolved_run, output)
     assert result is not None

@@ -25,6 +25,8 @@ DECLARE
   l_before JSON_ARRAY_T := JSON_ARRAY_T();
   l_after JSON_ARRAY_T := JSON_ARRAY_T();
   l_definitions JSON_ARRAY_T := JSON_ARRAY_T();
+  l_synonyms JSON_ARRAY_T := JSON_ARRAY_T();
+  l_grants JSON_ARRAY_T := JSON_ARRAY_T();
   l_errors JSON_ARRAY_T := JSON_ARRAY_T();
   l_privileges JSON_ARRAY_T := JSON_ARRAY_T();
   l_catalogs JSON_ARRAY_T := JSON_ARRAY_T();
@@ -36,8 +38,14 @@ DECLARE
   l_started_at VARCHAR2(40) := TO_CHAR(SYSTIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"');
   l_completed_at VARCHAR2(40);
   l_raw CLOB;
+  l_blob BLOB;
+  l_gzip BLOB;
+  l_dest INTEGER := 1;
+  l_src INTEGER := 1;
+  l_ctx INTEGER := 0;
+  l_warning INTEGER;
   l_pos PLS_INTEGER;
-  -- DBMS_LOB.SUBSTR below takes 4000 characters; four bytes each in UTF-8.
+  l_piece RAW(12000);
   l_chunk VARCHAR2(32767);
   l_owner VARCHAR2(128);
   l_name VARCHAR2(128);
@@ -49,21 +57,26 @@ DECLARE
   PROCEDURE add_inventory(p_array IN OUT NOCOPY JSON_ARRAY_T) IS
   BEGIN
     FOR item IN (
-      SELECT o.owner, o.object_name, o.object_type, o.status, o.object_id, o.data_object_id,
+      SELECT o.owner, o.object_name, o.object_type, o.subobject_name, o.status, o.object_id, o.data_object_id,
              o.timestamp AS object_timestamp,
              TO_CHAR(o.last_ddl_time, 'YYYY-MM-DD"T"HH24:MI:SS') AS last_ddl_time,
-             CASE WHEN o.object_type = 'SEQUENCE' AND EXISTS (
-                    SELECT 1 FROM all_tab_identity_cols identity_column
-                     WHERE identity_column.owner = o.owner
-                       AND identity_column.sequence_name = o.object_name
-                  ) THEN 'YES' ELSE 'NO' END AS identity_sequence,
-             (SELECT MIN(identity_column.table_name)
-                FROM all_tab_identity_cols identity_column
-               WHERE identity_column.owner = o.owner
-                 AND identity_column.sequence_name = o.object_name) AS identity_table_name
+             CASE WHEN o.object_type = 'SEQUENCE' AND ids.sequence_name IS NOT NULL THEN 'YES' ELSE 'NO' END AS identity_sequence,
+             ids.identity_table_name
         FROM all_objects o
+        LEFT JOIN (
+          SELECT owner,
+                 sequence_name,
+                 MIN(table_name) AS identity_table_name
+            FROM all_tab_identity_cols
+           WHERE owner = c_target_schema
+             AND sequence_name IS NOT NULL
+           GROUP BY owner, sequence_name
+        ) ids
+          ON ids.owner = o.owner
+         AND ids.sequence_name = o.object_name
+         AND o.object_type = 'SEQUENCE'
        WHERE o.owner = c_target_schema
-       ORDER BY o.object_name, o.object_type
+       ORDER BY o.object_name, o.object_type, o.subobject_name
     ) LOOP
       DECLARE
         row_value JSON_OBJECT_T := JSON_OBJECT_T();
@@ -71,6 +84,7 @@ DECLARE
         row_value.put('owner', item.owner);
         row_value.put('name', item.object_name);
         row_value.put('type', item.object_type);
+        IF item.subobject_name IS NOT NULL THEN row_value.put('subobject_name', item.subobject_name); END IF;
         row_value.put('status', item.status);
         row_value.put('object_id', item.object_id);
         IF item.data_object_id IS NOT NULL THEN row_value.put('data_object_id', item.data_object_id); END IF;
@@ -81,6 +95,100 @@ DECLARE
         p_array.append(row_value);
       END;
     END LOOP;
+  END;
+
+  PROCEDURE append_synonym(
+    p_owner VARCHAR2,
+    p_name VARCHAR2,
+    p_table_owner VARCHAR2,
+    p_table_name VARCHAR2,
+    p_db_link VARCHAR2
+  ) IS
+    row_value JSON_OBJECT_T := JSON_OBJECT_T();
+  BEGIN
+    row_value.put('owner', p_owner);
+    row_value.put('name', p_name);
+    row_value.put('table_owner', p_table_owner);
+    row_value.put('table_name', p_table_name);
+    IF p_db_link IS NOT NULL THEN row_value.put('db_link', p_db_link); END IF;
+    l_synonyms.append(row_value);
+  END;
+
+  PROCEDURE append_select_grant(
+    p_owner VARCHAR2,
+    p_table_name VARCHAR2,
+    p_grantee VARCHAR2,
+    p_privilege VARCHAR2
+  ) IS
+    row_value JSON_OBJECT_T := JSON_OBJECT_T();
+  BEGIN
+    row_value.put('owner', p_owner);
+    row_value.put('table_name', p_table_name);
+    row_value.put('grantee', p_grantee);
+    row_value.put('privilege', p_privilege);
+    l_grants.append(row_value);
+  END;
+
+  PROCEDURE add_dependency_catalogs IS
+  BEGIN
+    -- Owner sessions can see their own private synonyms and PUBLIC synonyms
+    -- through ALL_* views. A validated dictionary reader uses DBA_* so that
+    -- CURRENT_SCHEMA does not accidentally limit evidence to SESSION_USER.
+    IF l_path = 'METADATA_PRIVILEGE' THEN
+      FOR item IN (
+        SELECT owner, synonym_name, table_owner, table_name, db_link
+          FROM dba_synonyms
+         WHERE owner IN (c_target_schema, 'PUBLIC')
+           AND table_owner IS NOT NULL
+           AND table_name IS NOT NULL
+         ORDER BY owner, synonym_name
+      ) LOOP
+        append_synonym(item.owner, item.synonym_name, item.table_owner, item.table_name, item.db_link);
+      END LOOP;
+      FOR item IN (
+        SELECT DISTINCT privilege_row.owner, privilege_row.table_name, privilege_row.grantee, privilege_row.privilege
+          FROM dba_tab_privs privilege_row
+         WHERE privilege_row.grantee IN (c_target_schema, 'PUBLIC')
+           AND privilege_row.privilege = 'SELECT'
+           AND EXISTS (
+             SELECT 1
+               FROM dba_synonyms synonym_row
+              WHERE synonym_row.owner IN (c_target_schema, 'PUBLIC')
+                AND synonym_row.table_owner = privilege_row.owner
+                AND synonym_row.table_name = privilege_row.table_name
+           )
+         ORDER BY privilege_row.owner, privilege_row.table_name, privilege_row.grantee
+      ) LOOP
+        append_select_grant(item.owner, item.table_name, item.grantee, item.privilege);
+      END LOOP;
+    ELSE
+      FOR item IN (
+        SELECT owner, synonym_name, table_owner, table_name, db_link
+          FROM all_synonyms
+         WHERE owner IN (c_target_schema, 'PUBLIC')
+           AND table_owner IS NOT NULL
+           AND table_name IS NOT NULL
+         ORDER BY owner, synonym_name
+      ) LOOP
+        append_synonym(item.owner, item.synonym_name, item.table_owner, item.table_name, item.db_link);
+      END LOOP;
+      FOR item IN (
+        SELECT DISTINCT privilege_row.table_schema owner, privilege_row.table_name, privilege_row.grantee, privilege_row.privilege
+          FROM all_tab_privs privilege_row
+         WHERE privilege_row.grantee IN (c_target_schema, 'PUBLIC')
+           AND privilege_row.privilege = 'SELECT'
+           AND EXISTS (
+             SELECT 1
+               FROM all_synonyms synonym_row
+              WHERE synonym_row.owner IN (c_target_schema, 'PUBLIC')
+                AND synonym_row.table_owner = privilege_row.table_schema
+                AND synonym_row.table_name = privilege_row.table_name
+           )
+         ORDER BY privilege_row.table_schema, privilege_row.table_name, privilege_row.grantee
+      ) LOOP
+        append_select_grant(item.owner, item.table_name, item.grantee, item.privilege);
+      END LOOP;
+    END IF;
   END;
 
   PROCEDURE add_definition(p_owner VARCHAR2, p_name VARCHAR2, p_type VARCHAR2) IS
@@ -327,6 +435,30 @@ DECLARE
     END;
   END;
 
+  PROCEDURE cleanup_temp_lob(p_lob IN OUT NOCOPY CLOB) IS
+  BEGIN
+    IF p_lob IS NOT NULL THEN
+      IF DBMS_LOB.ISTEMPORARY(p_lob) = 1 THEN
+        DBMS_LOB.FREETEMPORARY(p_lob);
+      END IF;
+    END IF;
+  EXCEPTION
+    WHEN OTHERS THEN
+      NULL;
+  END cleanup_temp_lob;
+
+  PROCEDURE cleanup_temp_blob(p_lob IN OUT NOCOPY BLOB) IS
+  BEGIN
+    IF p_lob IS NOT NULL THEN
+      IF DBMS_LOB.ISTEMPORARY(p_lob) = 1 THEN
+        DBMS_LOB.FREETEMPORARY(p_lob);
+      END IF;
+    END IF;
+  EXCEPTION
+    WHEN OTHERS THEN
+      NULL;
+  END cleanup_temp_blob;
+
 BEGIN
   -- SQLcl's SERVEROUTPUT SIZE UNLIMITED still leaves a 1,000,000-byte buffer
   -- (ORU-10027), and a selected definition can be larger than that.
@@ -399,6 +531,9 @@ BEGIN
   IF c_phase = 'inventory' THEN
     add_inventory(l_objects);
   ELSE
+    add_dependency_catalogs();
+    l_catalogs.append('SYNONYMS');
+    l_catalogs.append('OBJECT_GRANTS');
     add_inventory(l_before);
     FOR selected_row IN (
       SELECT object_name, object_type
@@ -420,7 +555,7 @@ BEGIN
   l_coverage.put('unsupported', l_unsupported);
   l_completed_at := TO_CHAR(SYSTIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"');
 
-  l_payload.put('schemaVersion', 1);
+  l_payload.put('schemaVersion', 2);
   l_payload.put('phase', c_phase);
   l_payload.put('complete', l_owner_complete);
   l_payload.put('coverage', l_coverage);
@@ -434,15 +569,44 @@ BEGIN
     l_payload.put('after', l_after);
     l_payload.put('definitions', l_definitions);
     l_payload.put('metadataErrors', l_errors);
+    l_payload.put('synonyms', l_synonyms);
+    l_payload.put('grants', l_grants);
   END IF;
 
   l_raw := l_payload.to_clob();
+  DBMS_LOB.CREATETEMPORARY(l_blob, TRUE);
+  DBMS_LOB.CONVERTTOBLOB(
+    dest_lob     => l_blob,
+    src_clob     => l_raw,
+    amount       => DBMS_LOB.LOBMAXSIZE,
+    dest_offset  => l_dest,
+    src_offset   => l_src,
+    blob_csid    => NLS_CHARSET_ID('AL32UTF8'),
+    lang_context => l_ctx,
+    warning      => l_warning
+  );
+  IF l_warning != 0 THEN
+    RAISE_APPLICATION_ERROR(-20992, 'Unicode conversion warning during catalog compression');
+  END IF;
+  l_gzip := UTL_COMPRESS.LZ_COMPRESS(l_blob);
+  DBMS_OUTPUT.PUT_LINE('CATALOG_ENCODING:gzip-base64-v1');
   l_pos := 1;
-  WHILE l_pos <= DBMS_LOB.GETLENGTH(l_raw) LOOP
-    l_chunk := DBMS_LOB.SUBSTR(l_raw, 4000, l_pos);
+  WHILE l_pos <= DBMS_LOB.GETLENGTH(l_gzip) LOOP
+    l_piece := DBMS_LOB.SUBSTR(l_gzip, 12000, l_pos);
+    l_chunk := REPLACE(REPLACE(UTL_RAW.CAST_TO_VARCHAR2(UTL_ENCODE.BASE64_ENCODE(l_piece)), CHR(13), ''), CHR(10), '');
     DBMS_OUTPUT.PUT_LINE(l_chunk);
-    l_pos := l_pos + LENGTH(l_chunk);
+    l_pos := l_pos + UTL_RAW.LENGTH(l_piece);
   END LOOP;
+  cleanup_temp_blob(l_gzip);
+  cleanup_temp_blob(l_blob);
+  cleanup_temp_lob(l_raw);
+EXCEPTION
+  WHEN OTHERS THEN
+    cleanup_temp_blob(l_gzip);
+    cleanup_temp_blob(l_blob);
+    cleanup_temp_lob(l_raw);
+    ROLLBACK;
+    RAISE;
 END;
 /
 PROMPT CATALOG_PAYLOAD_END:&catalog_phase

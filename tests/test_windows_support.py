@@ -84,6 +84,141 @@ class BashCommandTests(unittest.TestCase):
         self.assertEqual(Path(result), git_root / "bin" / "bash.exe")
 
 
+class TeamPowerShellVerifyCommandTests(unittest.TestCase):
+    """The PowerShell entry point advertises and dispatches read-only verification."""
+
+    def engines(self):
+        engines = []
+        for name in ("powershell.exe", "pwsh.exe", "powershell", "pwsh"):
+            engine = shutil.which(name)
+            if engine and "/snap/bin/" not in Path(engine).as_posix():
+                engines.append(engine)
+        return engines
+
+    def test_help_describes_verify_options(self):
+        engines = self.engines()
+        if not engines:
+            self.skipTest("PowerShell is not installed outside the sandbox-blocked snap launcher")
+        for engine in engines:
+            with self.subTest(engine=Path(engine).name):
+                result = subprocess.run(
+                    [engine, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                     str(ROOT / "scripts" / "team.ps1"), "--help"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("verify <folder>", result.stdout)
+                self.assertIn("--jobs N", result.stdout)
+
+    def test_verify_without_folders_reports_its_usage(self):
+        engines = self.engines()
+        if not engines:
+            self.skipTest("PowerShell is not installed outside the sandbox-blocked snap launcher")
+        for engine in engines:
+            with self.subTest(engine=Path(engine).name):
+                result = subprocess.run(
+                    [engine, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                     str(ROOT / "scripts" / "team.ps1"), "verify"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("usage: scripts/team.ps1 verify", result.stderr)
+
+
+class TeamPowerShellRolloutCommandTests(unittest.TestCase):
+    """The PowerShell entry point exposes the same rollout contract as Bash."""
+
+    def engines(self):
+        return [
+            engine
+            for name in ("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+            if (engine := shutil.which(name)) and "/snap/bin/" not in Path(engine).as_posix()
+        ]
+
+    def test_help_describes_rollout_options(self):
+        engines = self.engines()
+        if not engines:
+            self.skipTest("PowerShell is not installed outside the sandbox-blocked snap launcher")
+        for engine in engines:
+            with self.subTest(engine=Path(engine).name):
+                result = subprocess.run(
+                    [engine, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                     str(ROOT / "scripts" / "team.ps1"), "--help"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("rollout <manifest.json>", result.stdout)
+                self.assertIn("--from-step N", result.stdout)
+                self.assertIn("--dry-run", result.stdout)
+                self.assertIn("--report <file>", result.stdout)
+                self.assertIn('ConvertTo-MigrationFolderArgument $reportValue', (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8"))
+
+    def test_rollout_without_manifest_reports_its_usage(self):
+        engines = self.engines()
+        if not engines:
+            self.skipTest("PowerShell is not installed outside the sandbox-blocked snap launcher")
+        for engine in engines:
+            with self.subTest(engine=Path(engine).name):
+                result = subprocess.run(
+                    [engine, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                     str(ROOT / "scripts" / "team.ps1"), "rollout"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("usage: scripts/team.ps1 rollout", result.stderr)
+
+    def test_help_documents_preflight_inventory_retry_setting(self):
+        text = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")
+        self.assertIn("MIGRATION_PREFLIGHT_INVENTORY_RETRIES", text)
+        self.assertIn("default 3", text)
+
+
+class TeamPowerShellMigrationRevisionTests(unittest.TestCase):
+    """The PowerShell entry point exposes and converts arguments for revision handling."""
+
+    def engines(self):
+        return [
+            engine
+            for name in ("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+            if (engine := shutil.which(name)) and "/snap/bin/" not in Path(engine).as_posix()
+        ]
+
+    def test_help_describes_revision_and_check_options(self):
+        wrapper = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")
+        self.assertIn("revise <folder> [--reason TEXT]", wrapper)
+        self.assertIn("revise --check <folder>", wrapper)
+
+    def test_revision_without_arguments_reports_usage(self):
+        engines = self.engines()
+        if not engines:
+            self.skipTest("PowerShell is not installed outside the sandbox-blocked snap launcher")
+        for engine in engines:
+            with self.subTest(engine=Path(engine).name):
+                result = subprocess.run(
+                    [engine, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                     str(ROOT / "scripts" / "team.ps1"), "revise"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("usage: scripts/team.ps1 revise", result.stderr)
+
+    def test_wrapper_converts_folder_argument_for_git_bash(self):
+        wrapper = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")
+        self.assertIn('$revisionArguments[1] = ConvertTo-MigrationFolderArgument', wrapper)
+        self.assertIn('$revisionArguments[0] = ConvertTo-MigrationFolderArgument', wrapper)
+        self.assertIn('Invoke-TeamBash -ScriptName "team.sh"', wrapper)
+
+
 class SqlclNativePathTests(unittest.TestCase):
     def test_native_path_is_the_identity_off_windows(self) -> None:
         if os.name == "nt":
@@ -189,6 +324,32 @@ class WindowsShellGateTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.strip(), "file")
+
+    def test_load_env_accepts_preflight_inventory_retry_setting(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            environment = self.environment(directory, "Linux")
+            env_file = directory / ".env"
+            env_file.write_text(
+                (ROOT / ".env.example").read_text(encoding="utf-8")
+                + "\nMIGRATION_PREFLIGHT_INVENTORY_RETRIES=4\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            result = subprocess.run(
+                ["bash", "-c", 'source "$1" "$2" && printf "%s\\n" "$MIGRATION_PREFLIGHT_INVENTORY_RETRIES"',
+                 "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_file)],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "4")
+
+    def test_powershell_env_loader_allows_and_clears_preflight_retry_setting(self) -> None:
+        text = (ROOT / "scripts" / "load_env.ps1").read_text(encoding="utf-8")
+        self.assertGreaterEqual(text.count("MIGRATION_PREFLIGHT_INVENTORY_RETRIES"), 2)
 
     def test_load_env_python3_converts_existing_paths_on_a_windows_shell(self) -> None:
         for uname in ("MINGW64_NT-10.0-26100", "MSYS_NT-10.0-26100", "CYGWIN_NT-10.0"):
