@@ -2,6 +2,8 @@ import hashlib
 import json
 import tempfile
 import unittest
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 import _no_real_sqlcl  # noqa: F401  (keeps tests away from a real SQLcl)
 
@@ -416,6 +418,53 @@ class MigrationManifestTests(unittest.TestCase):
         (folder / "checks.json").write_text((folder / "checks.json").read_text().replace("'T'", "'CUSTOMERS'"))
         checks_changed = api.load_migration(self.root, folder.relative_to(self.root).as_posix())
         self.assertNotEqual(renamed.payload_digest, checks_changed.payload_digest)
+
+    def test_valid_attempt_event_sidecar_is_not_part_of_the_payload_digest(self) -> None:
+        api = self.require_manifest()
+        folder = self.add_folder("2026-09-27_create-customers-r001")
+        relative = folder.relative_to(self.root).as_posix()
+        before = api.load_migration(self.root, relative)
+        event_id = str(uuid.uuid4())
+        event = {
+            "schemaVersion": 1,
+            "eventId": event_id,
+            "attemptId": str(uuid.uuid4()),
+            "runId": "migration-attempt-test-run",
+            "predecessorEventId": None,
+            "recordedAt": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "migrationPath": relative,
+            "environment": "dev",
+            "target": {
+                "environment": "dev",
+                "connection": "fake-dev",
+                "expected_user": "DEMO",
+                "current_schema": "DEMO",
+            },
+            "identity": None,
+            "files": [{"name": "001-create-table.sql", "sequence": 1, "sha256": "a" * 64}],
+            "checksSha256": "b" * 64,
+            "payloadDigest": before.payload_digest,
+            "state": "pending",
+            "writeAttempted": True,
+            "evidence": [],
+        }
+        (folder / f"attempt-event.{event_id}.json").write_text(
+            json.dumps(event, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        after = api.load_migration(self.root, relative)
+
+        self.assertEqual(after.payload_digest, before.payload_digest)
+
+    def test_malformed_attempt_event_sidecar_refuses_migration_load(self) -> None:
+        api = self.require_manifest()
+        folder = self.add_folder("2026-09-27_create-customers-r001")
+        (folder / f"attempt-event.{uuid.uuid4()}.json").write_text("{}\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(api.MigrationManifestError, "attempt evidence is invalid"):
+            api.load_migration(self.root, folder.relative_to(self.root).as_posix())
 
     def test_receipts_bind_target_and_payload_and_install_without_overwrite(self) -> None:
         api = self.require_manifest()

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -12,6 +11,14 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import Sequence
+
+from .migration_attempts import (
+    MigrationAttemptError,
+    not_started_reason as not_started_reason,
+    read_attempt_events,
+    reduce_attempt_events,
+    validate_no_write_evidence,
+)
 
 from .migration_manifest import (
     FOLDER_RE,
@@ -27,8 +34,6 @@ from .migration_manifest import (
 DEFAULT_REASON = "follow-up revision"
 RUN_MANIFEST_NAME = "run-manifest.json"
 RUN_ID_RE = re.compile(r"migration-attempt-[A-Za-z0-9_-]+\Z", re.ASCII)
-NOT_STARTED_CONNECTION_ERRORS = re.compile(r"(?m)^ORA-(?:01017|12154|12514|12537|12541|12545|12547|12560|12637)\b")
-IDENTITY_GUARD_ERRORS = re.compile(r"(?m)^ORA-2098[0-5]\b")
 
 
 class MigrationRevisionError(ValueError):
@@ -49,30 +54,6 @@ class LockReport:
     @property
     def exit_code(self) -> int:
         return {"unlocked": 0, "locked": 1, "unknown": 2}[self.status]
-
-
-def not_started_reason(output: str) -> str | None:
-    """Return a reason only for explicit pre-payload failures; missing output locks."""
-    if not isinstance(output, str):
-        return None
-    lines = {line.strip() for line in output.splitlines()}
-    if "MIGRATION_APPLY_COMPLETED" in lines:
-        return None
-    if any(line.startswith("MIGRATION_PAYLOAD_STARTED:") for line in lines):
-        return None
-    if (
-        "MIGRATION_IDENTITY_VERIFIED" in lines
-        and "MIGRATION_IDENTITY_GUARD_REFUSED" in output
-        and re.search(r"(?m)^ORA-20987\b", output)
-    ):
-        return "identity-guard-refused"
-    if "MIGRATION_IDENTITY_VERIFIED" not in lines and IDENTITY_GUARD_ERRORS.search(output):
-        return "migration-identity-guard-refused"
-    if NOT_STARTED_CONNECTION_ERRORS.search(output) or re.search(r"(?m)^SP2-0640\b", output):
-        return "connection-failed-before-payload"
-    if "unable to start sqlcl:" in output.casefold():
-        return "sqlcl-start-failed"
-    return None
 
 
 def attempt_record_is_locked(record: dict) -> bool:
@@ -153,7 +134,7 @@ def revise_folder(repo_root: Path, relative_folder: str, reason: str | None = No
         raise MigrationRevisionError("--reason must be one printable line")
 
     relative_destination = destination.relative_to(root).as_posix()
-    header = f"Supersedes {source.name}: {selected_reason}\n".encode("utf-8")
+    header = f"Supersedes {source.name}: {selected_reason}\n".encode()
     original_readme = source / "README.md"
     try:
         readme_bytes = original_readme.read_bytes() if original_readme.exists() else b""
@@ -190,8 +171,18 @@ def revise_folder(repo_root: Path, relative_folder: str, reason: str | None = No
     return RevisionResult(destination, order_hint)
 
 
-def inspect_migration_lock(repo_root: Path, relative_folder: str) -> LockReport:
-    """Inspect receipt and retained attempt files without connecting to SQLcl."""
+def inspect_migration_lock(
+    repo_root: Path,
+    relative_folder: str,
+    *,
+    environment: str | None = None,
+    schema: str | None = None,
+) -> LockReport:
+    """Inspect receipt and retained attempt files without connecting to SQLcl.
+
+    Without a target filter, report/revision callers see the global folder lock.
+    Apply callers may scope the decision to one environment and schema.
+    """
     root = Path(repo_root).resolve()
     states: list[str] = []
     problems: list[str] = []
@@ -212,26 +203,65 @@ def inspect_migration_lock(repo_root: Path, relative_folder: str) -> LockReport:
         _folder_parts(folder.name)
     except (MigrationManifestError, MigrationRevisionError, OSError, ValueError) as error:
         return LockReport("unknown", (f"folder-invalid:{_safe_label(str(error))}",))
+    if environment is not None and (not isinstance(environment, str) or environment not in STATUS_ENVIRONMENTS):
+        return LockReport("unknown", ("environment-invalid",))
+    if schema is not None and (not isinstance(schema, str) or not schema):
+        return LockReport("unknown", ("schema-invalid",))
     explicit_schema = parts[1] if len(parts) == 3 else None
 
     locked = False
-    for environment in sorted(STATUS_ENVIRONMENTS):
-        receipt_path = folder / f"status.{environment}.json"
+    for receipt_environment in sorted(STATUS_ENVIRONMENTS):
+        if environment is not None and receipt_environment != environment:
+            continue
+        receipt_path = folder / f"status.{receipt_environment}.json"
         if not receipt_path.exists() and not receipt_path.is_symlink():
             continue
         if receipt_path.is_symlink():
-            problems.append(f"receipt-symlink:{environment}")
+            problems.append(f"receipt-symlink:{receipt_environment}")
             continue
         try:
             receipt = decode_json(receipt_path.read_bytes(), str(receipt_path))
         except (OSError, MigrationManifestError) as error:
-            problems.append(f"receipt-unreadable:{environment}:{_safe_label(str(error))}")
+            problems.append(f"receipt-unreadable:{receipt_environment}:{_safe_label(str(error))}")
             continue
-        if not isinstance(receipt, dict) or receipt.get("schemaVersion") != 1 or receipt.get("state") != "verified" or receipt.get("environment") != environment:
-            problems.append(f"receipt-invalid:{environment}")
+        if not isinstance(receipt, dict) or receipt.get("schemaVersion") != 1 or receipt.get("state") != "verified" or receipt.get("environment") != receipt_environment:
+            problems.append(f"receipt-invalid:{receipt_environment}")
             continue
+        if schema is not None:
+            receipt_target = receipt.get("target")
+            receipt_schema = receipt_target.get("current_schema") if isinstance(receipt_target, dict) else None
+            if not isinstance(receipt_schema, str) or not receipt_schema:
+                problems.append(f"receipt-invalid:{receipt_environment}")
+                continue
+            if receipt_schema != schema:
+                continue
         locked = True
-        states.append(f"receipt:verified:{environment}")
+        states.append(f"receipt:verified:{receipt_environment}")
+
+    event_by_id: dict[str, dict] = {}
+    try:
+        events = read_attempt_events(folder)
+        event_by_id = {event["eventId"]: event for event in events}
+        # Validate every event chain before narrowing the lock decision. A
+        # malformed or branched event remains unknown even for another target.
+        all_event_state = reduce_attempt_events(events)
+        if environment is None and schema is None:
+            event_state = all_event_state
+        else:
+            selected_events = tuple(
+                event for event in events
+                if (environment is None or event["environment"] == environment)
+                and (schema is None or event["target"]["current_schema"] == schema)
+            )
+            event_state = reduce_attempt_events(selected_events)
+        if event_state.status == "locked":
+            locked = True
+        states.extend(event_state.states)
+        for event in events:
+            if event["state"] == "apply-not-started" and not validate_no_write_evidence(root, event):
+                problems.append(f"attempt-event-no-write-evidence-unavailable:{event['eventId']}")
+    except (MigrationAttemptError, OSError, ValueError) as error:
+        problems.append(f"attempt-events-invalid:{_safe_label(str(error))}")
 
     scratch = root / "scratch"
     if scratch.is_symlink():
@@ -260,20 +290,30 @@ def inspect_migration_lock(repo_root: Path, relative_folder: str) -> LockReport:
             except (OSError, MigrationManifestError) as error:
                 problems.append(f"attempt-manifest-unreadable:{_safe_label(str(error))}")
                 continue
-            if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("migrations"), list):
+            if (
+                not isinstance(manifest, dict)
+                or type(manifest.get("schemaVersion")) is not int
+                or manifest.get("schemaVersion") not in {1, 2}
+                or not isinstance(manifest.get("migrations"), list)
+            ):
                 problems.append(f"attempt-manifest-invalid:{_safe_label(attempt_dir.name)}")
                 continue
             target = manifest.get("target")
             if (
                 not isinstance(target, dict)
+                or not isinstance(target.get("environment"), str)
                 or target.get("environment") not in STATUS_ENVIRONMENTS
                 or not isinstance(target.get("current_schema"), str)
             ):
                 problems.append(f"attempt-target-invalid:{_safe_label(attempt_dir.name)}")
                 continue
-            if explicit_schema is not None:
-                if target.get("current_schema") != explicit_schema:
+            if schema is not None:
+                if target.get("current_schema") != schema:
                     continue
+            elif explicit_schema is not None and target.get("current_schema") != explicit_schema:
+                continue
+            if environment is not None and target.get("environment") != environment:
+                continue
             for record in manifest["migrations"]:
                 if not isinstance(record, dict):
                     problems.append(f"attempt-record-invalid:{_safe_label(attempt_dir.name)}")
@@ -281,13 +321,30 @@ def inspect_migration_lock(repo_root: Path, relative_folder: str) -> LockReport:
                 if record.get("folder") != folder.name:
                     continue
                 state = _safe_label(record.get("state"))
-                environment = _safe_label(target.get("environment"))
+                record_environment = _safe_label(target.get("environment"))
+                if type(manifest["schemaVersion"]) is int and manifest["schemaVersion"] == 2:
+                    event_ids = record.get("attemptEventIds")
+                    if not isinstance(event_ids, list) or any(not isinstance(event_id, str) for event_id in event_ids):
+                        problems.append(f"attempt-event-references-invalid:{_safe_label(attempt_dir.name)}:{state}")
+                        continue
+                    if (record.get("writeAttempted") is True or record.get("state") != "frozen") and not event_ids:
+                        problems.append(f"attempt-event-reference-missing:{_safe_label(attempt_dir.name)}:{state}")
+                    for event_id in event_ids:
+                        event = event_by_id.get(event_id)
+                        if (
+                            event is None
+                            or event.get("runId") != attempt_dir.name
+                            or event.get("migrationPath") != folder.relative_to(root).as_posix()
+                            or event.get("environment") != target.get("environment")
+                            or event.get("target", {}).get("current_schema") != target.get("current_schema")
+                        ):
+                            problems.append(f"attempt-event-reference-unverified:{_safe_label(attempt_dir.name)}:{_safe_label(event_id)}")
                 if record.get("writeAttempted") is False and record.get("state") not in {"frozen", "apply-not-started"}:
-                    problems.append(f"attempt-state-uncertain:{state}:{environment}")
+                    problems.append(f"attempt-state-uncertain:{state}:{record_environment}")
                     continue
                 if attempt_record_is_locked(record):
                     locked = True
-                states.append(f"attempt:{state}:{environment}")
+                states.append(f"attempt:{state}:{record_environment}")
 
     if problems:
         states.extend(problems)

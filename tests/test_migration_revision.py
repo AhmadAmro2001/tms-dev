@@ -81,7 +81,7 @@ class MigrationRevisionTests(unittest.TestCase):
     def test_team_shell_exposes_revise_and_check(self):
         scripts = self.root / "scripts"
         scripts.mkdir()
-        for name in ("team.sh", "migration_revision.py", "migration_manifest.py", "validate_migration.py"):
+        for name in ("team.sh", "migration_revision.py", "migration_attempts.py", "migration_manifest.py", "validate_migration.py"):
             shutil.copy2(Path(__file__).resolve().parents[1] / "scripts" / name, scripts / name)
         folder = self.add_folder("migrations/2026-10-01_create-things-r001")
 
@@ -189,6 +189,28 @@ class MigrationRevisionTests(unittest.TestCase):
 
         self.assertEqual(result.status, "unknown")
         self.assertIn("unreadable", " ".join(result.states))
+
+    def test_schema_two_attempt_without_an_event_reference_stays_locked(self):
+        folder = self.add_folder("migrations/2026-10-01_schema-two-r001")
+        attempt_dir = self.root / "scratch" / "migration-attempt-schema-two"
+        attempt_dir.mkdir(parents=True)
+        manifest = {
+            "schemaVersion": 2,
+            "state": "write-attempted",
+            "target": {"environment": "dev", "current_schema": "DEMO"},
+            "migrations": [{
+                "folder": folder.name,
+                "writeAttempted": True,
+                "state": "write-attempted",
+                "attemptEventIds": [],
+            }],
+        }
+        (attempt_dir / "run-manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+        result = inspect_migration_lock(self.root, "migrations/2026-10-01_schema-two-r001")
+
+        self.assertEqual(result.status, "locked")
+        self.assertIn("attempt-event-reference-missing", " ".join(result.states))
 
     def test_check_reports_attempt_directory_without_manifest_as_unknown(self):
         self.add_folder("migrations/2026-10-01_create-things-r001")

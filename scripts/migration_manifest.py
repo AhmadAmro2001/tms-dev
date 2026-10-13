@@ -15,6 +15,7 @@ from datetime import date, datetime
 from pathlib import Path
 from collections.abc import Mapping, Sequence
 
+from .migration_attempts import EVENT_FILENAME_RE, MigrationAttemptError, read_attempt_events
 from .validate_migration import validate_sql_only
 
 
@@ -452,6 +453,10 @@ def _load_check_file(path: Path) -> tuple[tuple[QueryCheck, ...], tuple[QueryChe
 def _validate_folder_entries(folder: Path) -> tuple[MigrationFile, ...]:
     files: list[MigrationFile] = []
     found_sequences: dict[int, str] = {}
+    try:
+        read_attempt_events(folder)
+    except MigrationAttemptError as exc:
+        raise MigrationManifestError(f"migration attempt evidence is invalid: {exc}") from exc
     for path in folder.iterdir():
         if path.is_symlink():
             raise MigrationManifestError(f"symbolic links are not allowed in migration folders: {path.name}")
@@ -465,6 +470,10 @@ def _validate_folder_entries(folder: Path) -> tuple[MigrationFile, ...]:
             environment = path.name[len("status.") : -len(".json")]
             if environment not in STATUS_ENVIRONMENTS:
                 raise MigrationManifestError(f"unsupported migration status environment: {path.name}")
+            continue
+        if path.name.startswith("attempt-event."):
+            if EVENT_FILENAME_RE.fullmatch(path.name) is None:
+                raise MigrationManifestError(f"unsupported migration attempt event filename: {path.name}")
             continue
         match = SQL_FILE_RE.fullmatch(path.name)
         if match is None:

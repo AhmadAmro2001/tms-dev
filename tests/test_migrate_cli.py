@@ -2,20 +2,23 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from fake_sqlcl import environment as fake_environment, install
 from scripts.db_targets import Target
-from scripts.migrate import MigrationApplyError, _assert_check_identity, apply_batch, apply_folder, main
+from scripts.migrate import MigrationApplyError, _assert_check_identity, _attempt_event, _verify_receipts_and_attempts, apply_batch, apply_folder, main
 from scripts.migration_checks import CheckReport, analyze_batch, run_checks
 from scripts.migration_manifest import load_batch, validate_receipt
 from scripts.migration_revision import inspect_migration_lock
+from scripts.migration_attempts import write_attempt_event
 from scripts.schema_catalog import InventoryChangedError, ObjectDefinition, ObjectKey, SchemaInventory, SchemaSnapshot
 import _no_real_sqlcl  # noqa: F401  (keeps tests away from a real SQLcl)
 
@@ -202,6 +205,34 @@ class MigrateCliTests(unittest.TestCase):
         )
         return result, fake
 
+    def target_identity(self, target):
+        return {
+            "environment": target.environment,
+            "connection": target.connection,
+            "expected_user": target.expected_user,
+            **FakeDatabase(target).identity(),
+        }
+
+    def write_attempt_chain(self, migration, target, terminal_state="pending"):
+        identity = self.target_identity(target)
+        attempt_id = str(uuid.uuid4())
+        run_id = f"migration-attempt-{uuid.uuid4().hex}"
+        pending = _attempt_event(
+            self.root, migration, identity, run_id, attempt_id,
+            state="pending", write_attempted=True,
+        )
+        write_attempt_event(migration.folder, pending)
+        events = [pending]
+        if terminal_state == "verified":
+            verified = _attempt_event(
+                self.root, migration, identity, run_id, attempt_id,
+                state="verified", write_attempted=True,
+                predecessor_event_id=pending["eventId"],
+            )
+            write_attempt_event(migration.folder, verified)
+            events.append(verified)
+        return identity, tuple(events)
+
     def test_apply_freezes_order_verifies_and_writes_receipt(self):
         folder = self.add_folder("2026-09-28_create-orders-r001", {
             "001-create-table.sql": "CREATE TABLE ORDERS (ID NUMBER);\n",
@@ -220,6 +251,16 @@ class MigrateCliTests(unittest.TestCase):
         self.assertEqual([item["kind"] for item in receipt["checks"] if item.get("kind")], ["catalog", "catalog"])
         self.assertNotIn("developer", json.dumps(receipt).casefold())
         self.assertNotIn("password", json.dumps(receipt).casefold())
+        events = [json.loads(path.read_text(encoding="utf-8")) for path in folder.glob("attempt-event.*.json")]
+        self.assertEqual({event["state"] for event in events}, {"pending", "verified"})
+        pending = next(event for event in events if event["state"] == "pending")
+        verified = next(event for event in events if event["state"] == "verified")
+        self.assertEqual(verified["predecessorEventId"], pending["eventId"])
+        self.assertEqual(pending["payloadDigest"], migration[0].payload_digest)
+        run_manifest = next((self.root / "scratch").glob("migration-attempt-*/run-manifest.json"))
+        run_record = json.loads(run_manifest.read_text(encoding="utf-8"))
+        self.assertEqual(run_record["schemaVersion"], 2)
+        self.assertEqual(set(run_record["migrations"][0]["attemptEventIds"]), {event["eventId"] for event in events})
 
     def test_inventory_retry_exhaustion_reports_live_preflight_code_and_fingerprints(self):
         folder = self.add_folder(
@@ -258,6 +299,160 @@ class MigrateCliTests(unittest.TestCase):
                 self.assertEqual(prompts, [f"Migrating to {environment.upper()}. Proceed? [y/N]"])
                 self.assertFalse(any(call[0] == "apply" for call in fake.calls))
                 self.assertFalse((folder / f"status.{environment}.json").exists())
+
+    def test_verified_dev_evidence_does_not_block_stage_or_prod_with_or_without_scratch(self):
+        folder = self.add_folder("2026-10-14_promotion-scope-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        migrations = self.load(folder.name)
+        dev_result, _ = self.apply(migrations, target=self.target("dev"))
+        self.assertEqual(dev_result, 0)
+        self.assertEqual(inspect_migration_lock(self.root, f"migrations/{folder.name}").status, "locked")
+
+        for environment in ("staging", "prod"):
+            with self.subTest(environment=environment, scratch="present"):
+                target = self.target(environment)
+                _verify_receipts_and_attempts(self.root, migrations, self.target_identity(target))
+
+        shutil.rmtree(self.root / "scratch")
+        for environment in ("staging", "prod"):
+            with self.subTest(environment=environment, scratch="absent"):
+                target = self.target(environment)
+                _verify_receipts_and_attempts(self.root, migrations, self.target_identity(target))
+
+    def test_selected_environment_pending_or_verified_events_remain_locked(self):
+        for state in ("pending", "verified"):
+            with self.subTest(state=state):
+                folder = self.add_folder(
+                    f"2026-10-14_selected-{state}-r001",
+                    {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"},
+                )
+                migration = self.load(folder.name)[0]
+                target = self.target("staging")
+                identity, _events = self.write_attempt_chain(migration, target, state)
+
+                with self.assertRaisesRegex(MigrationApplyError, "durable receipt/attempt evidence"):
+                    _verify_receipts_and_attempts(self.root, (migration,), identity)
+
+    def test_verified_event_in_another_schema_does_not_lock_the_selected_schema(self):
+        folder = self.add_folder("2026-10-14_schema-scope-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        migration = self.load(folder.name)
+        source_target = self.target("dev")
+        self.write_attempt_chain(migration[0], source_target, "verified")
+        selected_target = Target("dev", "dev-profile", "LOGIN_DEV", "APP_DEV2", "development")
+
+        _verify_receipts_and_attempts(self.root, migration, self.target_identity(selected_target))
+
+    def test_selected_target_missing_no_write_evidence_remains_locked(self):
+        folder = self.add_folder("2026-10-14_missing-proof-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        migration = self.load(folder.name)[0]
+        target = self.target("staging")
+        identity = self.target_identity(target)
+        event = _attempt_event(
+            self.root,
+            migration,
+            identity,
+            f"migration-attempt-{uuid.uuid4().hex}",
+            str(uuid.uuid4()),
+            state="apply-not-started",
+            write_attempted=False,
+            evidence=({
+                "kind": "no-write-sqlcl-output",
+                "path": "scratch/missing-attempt/apply/sqlcl-output.log",
+                "sha256": "0" * 64,
+                "classification": "connection-failed-before-payload",
+            },),
+        )
+        write_attempt_event(folder, event)
+
+        with self.assertRaisesRegex(MigrationApplyError, "durable receipt/attempt evidence"):
+            _verify_receipts_and_attempts(self.root, (migration,), identity)
+
+    def test_malformed_attempt_event_remains_fail_closed_for_apply(self):
+        folder = self.add_folder("2026-10-14_malformed-event-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        migration = self.load(folder.name)[0]
+        event_id = "11111111-1111-4111-8111-111111111111"
+        (folder / f"attempt-event.{event_id}.json").write_text("{\n", encoding="utf-8", newline="\n")
+
+        with self.assertRaisesRegex(MigrationApplyError, "durable receipt/attempt evidence"):
+            _verify_receipts_and_attempts(self.root, (migration,), self.target_identity(self.target("staging")))
+
+    def test_missing_schema_two_event_reference_remains_fail_closed_for_apply(self):
+        folder = self.add_folder("2026-10-14_missing-event-reference-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        migration = self.load(folder.name)[0]
+        target = self.target("staging")
+        attempt_dir = self.root / "scratch" / f"migration-attempt-{uuid.uuid4().hex}"
+        attempt_dir.mkdir(parents=True)
+        manifest = {
+            "schemaVersion": 2,
+            "state": "apply-not-started",
+            "createdAt": now_text(),
+            "target": self.target_identity(target),
+            "migrations": [{
+                "folder": folder.name,
+                "payloadDigest": migration.payload_digest,
+                "writeAttempted": False,
+                "state": "apply-not-started",
+                "attemptEventIds": [],
+            }],
+        }
+        (attempt_dir / "run-manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(MigrationApplyError, "durable receipt/attempt evidence"):
+            _verify_receipts_and_attempts(self.root, (migration,), self.target_identity(target))
+
+    def test_global_lock_report_keeps_later_schema_one_attempts(self):
+        folder = self.add_folder("2026-10-14_legacy-environments-r001", {"001-create-table.sql": "CREATE TABLE T (ID NUMBER);\n"})
+        scratch = self.root / "scratch"
+        scratch.mkdir()
+        no_write_dir = scratch / "migration-attempt-no-write"
+        write_dir = scratch / "migration-attempt-write"
+        no_write_dir.mkdir()
+        write_dir.mkdir()
+        migration = self.load(folder.name)[0]
+        no_write = {
+            "schemaVersion": 1,
+            "state": "apply-not-started",
+            "createdAt": now_text(),
+            "target": self.target_identity(self.target("dev")),
+            "migrations": [{
+                "folder": folder.name,
+                "payloadDigest": migration.payload_digest,
+                "writeAttempted": False,
+                "state": "apply-not-started",
+            }],
+        }
+        write_attempted = {
+            "schemaVersion": 1,
+            "state": "write-attempted",
+            "createdAt": now_text(),
+            "target": self.target_identity(self.target("staging")),
+            "migrations": [{
+                "folder": folder.name,
+                "payloadDigest": migration.payload_digest,
+                "writeAttempted": True,
+                "state": "write-attempted",
+            }],
+        }
+        (no_write_dir / "run-manifest.json").write_text(json.dumps(no_write) + "\n", encoding="utf-8")
+        (write_dir / "run-manifest.json").write_text(json.dumps(write_attempted) + "\n", encoding="utf-8")
+
+        original_iterdir = Path.iterdir
+
+        def ordered_iterdir(path):
+            if path == scratch:
+                return iter((no_write_dir, write_dir))
+            return original_iterdir(path)
+
+        with patch.object(Path, "iterdir", ordered_iterdir):
+            global_lock = inspect_migration_lock(self.root, f"migrations/{folder.name}")
+            staging_lock = inspect_migration_lock(
+                self.root, f"migrations/{folder.name}", environment="staging", schema="APP_STAGING",
+            )
+
+        self.assertEqual(global_lock.status, "locked")
+        self.assertIn("attempt:apply-not-started:dev", global_lock.states)
+        self.assertIn("attempt:write-attempted:staging", global_lock.states)
+        self.assertEqual(staging_lock.status, "locked")
+        self.assertEqual(staging_lock.states, ("attempt:write-attempted:staging",))
 
     def test_second_file_failure_stops_third_and_later_folder_without_receipt(self):
         first = self.add_folder("2026-09-28_create-first-r001", {
@@ -323,6 +518,12 @@ class MigrateCliTests(unittest.TestCase):
         recorded = json.loads(manifest.read_text(encoding="utf-8"))["migrations"][0]
         self.assertEqual(recorded["state"], "apply-not-started")
         self.assertFalse(recorded["writeAttempted"])
+        no_write_event = next(
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in folder.glob("attempt-event.*.json")
+            if json.loads(path.read_text(encoding="utf-8"))["state"] == "apply-not-started"
+        )
+        self.assertEqual(no_write_event["evidence"][0]["classification"], "identity-guard-refused")
         self.assertEqual(inspect_migration_lock(self.root, f"migrations/{folder.name}").status, "unlocked")
 
         success = (
@@ -759,7 +960,7 @@ class MigrateCliTests(unittest.TestCase):
                 migrations = self.load(folder.name)
                 fake = FakeDatabase(self.target())
 
-                def fail_postconditions(target, checks, run_dir, *, phase):
+                def fail_postconditions(target, checks, run_dir, *, phase, fake=fake):
                     if phase != "postconditions":
                         return fake.run_checks(target, checks, run_dir, phase=phase)
                     ids = [check.id for check in checks]
