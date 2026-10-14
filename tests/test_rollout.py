@@ -68,7 +68,7 @@ class RolloutManifestTests(unittest.TestCase):
             if mutate is not None:
                 mutate(number)
             code = 2 if number == fail_at else 0
-            return rollout.StepResult(code, (evidence.relative_to(self.root).as_posix(),), "simulated")
+            return rollout.StepResult(code, (evidence.relative_to(self.root.resolve()).as_posix(),), "simulated")
 
         return execute
 
@@ -426,7 +426,7 @@ class RolloutManifestTests(unittest.TestCase):
         def fake_migrate_main(arguments, *, environ, repo_root, confirm, expected_input_hashes):
             self.assertEqual(arguments, [folder, "--env", "staging"])
             self.assertIs(environ, os.environ)
-            self.assertEqual(repo_root, self.root)
+            self.assertEqual(repo_root, self.root.resolve())
             self.assertEqual(
                 expected_input_hashes[f"{folder}/001-create-table.sql"],
                 hashlib.sha256((self.root / folder / "001-create-table.sql").read_bytes()).hexdigest(),

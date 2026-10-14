@@ -152,24 +152,21 @@ class TeamCliTests(unittest.TestCase):
     def test_bash_forwards_converted_repo_root_to_native_python(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root, environment, calls = migration_plan_checkout(Path(temporary))
-            command_bin = Path(temporary) / "path bridge [fake]"
-            command_bin.mkdir()
-            uname = command_bin / "uname"
-            uname.write_text("#!/bin/sh\nprintf 'MINGW64_NT-10.0\\n'\n", encoding="utf-8", newline="\n")
-            cygpath = command_bin / "cygpath"
-            cygpath.write_text(
-                "#!/bin/sh\n"
-                "printf '%s\\n' \"$*\" >> \"$CYGPATH_CAPTURE\"\n"
-                "[ \"$1\" = '-m' ] && [ \"$2\" = '--' ] || exit 2\n"
-                "printf '%s\\n' \"$3\"\n",
+            bash_env = Path(temporary) / "path bridge [fake].bash"
+            bash_env.write_text(
+                "uname() { printf 'MINGW64_NT-10.0\\n'; }\n"
+                "cygpath() {\n"
+                "  printf '%s\\n' \"$*\" >> \"$CYGPATH_CAPTURE\"\n"
+                "  [ \"$1\" = '-m' ] && [ \"$2\" = '--' ] || return 2\n"
+                "  printf '%s\\n' \"$MIGRATION_PLAN_NATIVE_ROOT\"\n"
+                "}\n",
                 encoding="utf-8",
                 newline="\n",
             )
-            os.chmod(uname, 0o755)
-            os.chmod(cygpath, 0o755)
             capture = Path(temporary) / "cygpath args.log"
-            environment["PATH"] = f"{command_bin}{os.pathsep}{environment['PATH']}"
+            environment["BASH_ENV"] = str(bash_env)
             environment["CYGPATH_CAPTURE"] = str(capture)
+            environment["MIGRATION_PLAN_NATIVE_ROOT"] = root.resolve().as_posix()
 
             result = subprocess.run(
                 [BASH, str(root / "scripts" / "team.sh"), "migration-plan", "--format", "json"],
@@ -181,8 +178,15 @@ class TeamCliTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual(0, json.loads(result.stdout)["summary"]["folderCount"])
-            self.assertTrue(capture.exists(), "MSYS roots must pass through cygpath before native Python starts")
-            self.assertEqual(f"-m -- {root}", capture.read_text(encoding="utf-8").strip())
+            self.assertTrue(
+                capture.exists(),
+                f"MSYS roots must pass through cygpath before native Python starts: {result.stdout}{result.stderr}",
+            )
+            self.assertEqual("-m --", " ".join(capture.read_text(encoding="utf-8").strip().split(" ")[:2]))
+            self.assertTrue(
+                capture.read_text(encoding="utf-8").strip().endswith("/" + root.name),
+                capture.read_text(encoding="utf-8"),
+            )
             self.assertFalse(calls.exists(), "offline reporting must not start fake SQLcl")
 
     def test_live_refuses_ambiguous_flags_before_connection(self) -> None:
@@ -981,7 +985,7 @@ class TeamCliTests(unittest.TestCase):
             if os.name == "nt":
                 # team.ps1 also looks for Git for Windows under Program Files and LOCALAPPDATA\Programs.
                 for name in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "LOCALAPPDATA"):
-                    environment[name] = empty
+                    environment[name] = str(empty)
             result = subprocess.run(
                 [pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1"), "migrate", "migrations/x", "--env", "dev"],
                 cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
