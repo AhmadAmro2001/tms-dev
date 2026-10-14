@@ -124,6 +124,23 @@ status.dev.json.` from `migrate`.
 - If the check says `COLUMN_ALREADY_EXISTS`, the change is already in the
   database (or a teammate added it). Do not apply it again.
 
+### Review a migration plan
+
+Before picking an explicit folder order, inspect the local inventory and its
+counts. The offline report needs no `.env` or SQLcl and does not imply that a
+folder is ready to apply:
+
+```bash
+scripts/team.sh migration-plan --format markdown
+scripts/team.sh migration-plan \
+  migrations/2026-09-30_create-orders-r001 \
+  migrations/2026-10-01_add-order-state-r001 --live --env dev
+```
+
+The live report is read-only. Later preconditions are deferred to each folder's
+apply boundary. See [migration planning](migration-planning.md) for its local
+evidence limits, explicit-order rules and multi-folder migrate/rollout examples.
+
 ## 4. Test a SQL change before touching the database
 
 **When:** you want a quick answer, or you have no database connection.

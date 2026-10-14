@@ -36,6 +36,8 @@ Commands:
   publish <app_id> [--env dev] [--force]      Drift-check and import to DEV
   check-conflicts <folder> [...] (--env <env>|--local)
                                               Preflight selected migrations against local/live scope
+  migration-plan [<folder> ...] [--live --env <env>] [--schema NAME] [--format text|json|markdown]
+                                              Inventory migrations or run a guarded read-only preflight
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
@@ -54,7 +56,7 @@ Commands:
   upgrade-template [--source <url|path>] [--ref <ref>] [--dry-run]
                                               Update template-owned files from the template
 Options:
-  --schema <NAME>                             Run one configured schema (any command except upgrade-template)
+  --schema <NAME>                             Run one configured schema (except upgrade-template and migration-plan)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -177,7 +179,7 @@ if ([string]::IsNullOrWhiteSpace($Command) -or $Command -in @("--help", "-h")) {
 
 # --schema NAME is the one selection channel: strip it and set PROJECT_SCHEMA so
 # every child script's loader narrows to that schema.
-if ($Command -ne "upgrade-template") {
+if ($Command -notin @("upgrade-template", "migration-plan")) {
   $schemaFiltered = @()
   for ($index = 0; $index -lt $Arguments.Count; $index++) {
     if ($Arguments[$index] -eq "--schema") {
@@ -319,6 +321,18 @@ try {
     "check-conflicts" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 check-conflicts <migration-folder> [...] (--env dev|staging|prod | --local)" }
       Invoke-TeamBash -ScriptName "check_conflicts.sh" -ScriptArguments @($Arguments | ForEach-Object { ConvertTo-MigrationFolderArgument $_ })
+    }
+    "migration-plan" {
+      . (Join-Path $PSScriptRoot "migration_plan_args.ps1")
+      $planArguments = @()
+      foreach ($classifiedArgument in @(Get-MigrationPlanArgumentKinds -Values $Arguments)) {
+        if ($classifiedArgument.kind -ceq "folder") {
+          $planArguments += ConvertTo-MigrationFolderArgument ([string] $classifiedArgument.value)
+        } else {
+          $planArguments += [string] $classifiedArgument.value
+        }
+      }
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("migration-plan") + $planArguments)
     }
     "migrate" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 migrate <migration-folder> [...] --env dev|staging|prod [--rehearse] [--report <file>]" }

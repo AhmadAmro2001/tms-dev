@@ -18,7 +18,324 @@ from fake_sqlcl import BASH
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def migration_plan_checkout(parent: Path, *, env_contents: str | None = None, sqlcl_version: str = "26.2.0.0"):
+    """Copy the real wrappers into a path that stresses native path forwarding."""
+    root = parent / "migration project [report path]"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True)
+    for name in ("team.sh", "team.ps1", "resolve_python.ps1", "migration_plan_args.ps1"):
+        source = ROOT / "scripts" / name
+        if source.is_file():
+            shutil.copy2(source, scripts / name)
+    (root / "migrations").mkdir()
+    if env_contents is not None:
+        (root / ".env").write_text(env_contents, encoding="utf-8", newline="\n")
+    fake_bin = parent / "fake sqlcl [report]"
+    calls = parent / "sqlcl calls.log"
+    fake_sqlcl.install(fake_bin, """printf '%s\\n' \"$*\" >> \"$FAKE_SQLCL_CALLS\"
+if [ \"${1:-}\" = \"-V\" ]; then
+  printf 'SQLcl: Release %s Production\\n' \"$FAKE_SQLCL_VERSION\"
+  exit 0
+fi
+printf 'unexpected fake SQLcl command\\n' >&2
+exit 17
+""")
+    environment = fake_sqlcl.environment(
+        fake_bin,
+        base=os.environ,
+        PROJECT_ENV_FILE=str(root / ".env"),
+        PYTHONPATH=str(ROOT),
+        FAKE_SQLCL_CALLS=str(calls),
+        FAKE_SQLCL_VERSION=sqlcl_version,
+    )
+    return root, environment, calls
+
+
 class TeamCliTests(unittest.TestCase):
+    def test_migration_plan_help_and_offline_need_no_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(Path(temporary))
+            for entry in ("team.sh", "team.ps1"):
+                if entry.endswith("ps1") and not shutil.which("pwsh"):
+                    continue
+                launcher = [BASH] if entry.endswith("sh") else [shutil.which("pwsh"), "-NoProfile", "-File"]
+                script = root / "scripts" / entry
+                with self.subTest(entry=entry, mode="help"):
+                    help_result = subprocess.run(
+                        [*launcher, str(script), "migration-plan", "--help"],
+                        cwd=temporary, env=environment, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(0, help_result.returncode, help_result.stderr)
+                    self.assertIn("migration-plan", help_result.stdout)
+                    self.assertIn("--format", help_result.stdout)
+                with self.subTest(entry=entry, mode="offline"):
+                    result = subprocess.run(
+                        [*launcher, str(script), "migration-plan", "--format", "json"],
+                        cwd=temporary, env=environment, capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    report = json.loads(result.stdout)
+                    self.assertEqual("offline", report["mode"])
+                    self.assertEqual(0, report["summary"]["folderCount"])
+                    self.assertEqual("", result.stderr)
+            self.assertFalse(calls.exists(), "help and offline inventory must not start SQLcl or load .env")
+
+    def test_both_wrappers_forward_schema_and_folder_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(Path(temporary))
+            selected = (
+                "migrations/2026-10-13_zulu-first-r001",
+                "migrations/2026-10-13_alpha-second-r001",
+            )
+            for relative in selected:
+                folder = root / relative
+                folder.mkdir(parents=True)
+                (folder / "001-step.sql").write_text("SELECT 1 FROM dual;\n", encoding="utf-8", newline="\n")
+                (folder / "checks.json").write_text(
+                    '{"schemaVersion":1,"preconditions":[],"postconditions":[{"id":"ready","sql":"SELECT 1 FROM dual","expected":1}]}\n',
+                    encoding="utf-8", newline="\n",
+                )
+            reports = []
+            statuses = []
+            for entry in ("team.sh", "team.ps1"):
+                if entry.endswith("ps1") and not shutil.which("pwsh"):
+                    continue
+                launcher = [BASH] if entry.endswith("sh") else [shutil.which("pwsh"), "-NoProfile", "-File"]
+                result = subprocess.run(
+                    [*launcher, str(root / "scripts" / entry), "migration-plan", *selected, "--schema", "ALPHA", "--format", "json"],
+                    cwd=temporary, env=environment, capture_output=True, text=True, check=False,
+                )
+                with self.subTest(entry=entry):
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual("", result.stderr)
+                    report = json.loads(result.stdout)
+                    self.assertEqual("explicit", report["selection"])
+                    self.assertEqual("caller-asserted", report["migrations"][0]["schemaSource"])
+                    self.assertEqual(list(selected), [item["path"] for item in report["migrations"]])
+                    self.assertTrue(all(item["schema"] == "ALPHA" for item in report["migrations"]))
+                    reports.append(report)
+                    statuses.append(result.returncode)
+            self.assertGreaterEqual(len(reports), 1)
+            self.assertTrue(all(report == reports[0] for report in reports))
+            self.assertEqual([0] * len(statuses), statuses)
+            self.assertFalse(calls.exists(), "offline reporting must not start fake SQLcl")
+
+    def test_bash_forwards_converted_repo_root_to_native_python(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(Path(temporary))
+            command_bin = Path(temporary) / "path bridge [fake]"
+            command_bin.mkdir()
+            uname = command_bin / "uname"
+            uname.write_text("#!/bin/sh\nprintf 'MINGW64_NT-10.0\\n'\n", encoding="utf-8", newline="\n")
+            cygpath = command_bin / "cygpath"
+            cygpath.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$*\" >> \"$CYGPATH_CAPTURE\"\n"
+                "[ \"$1\" = '-m' ] && [ \"$2\" = '--' ] || exit 2\n"
+                "printf '%s\\n' \"$3\"\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            os.chmod(uname, 0o755)
+            os.chmod(cygpath, 0o755)
+            capture = Path(temporary) / "cygpath args.log"
+            environment["PATH"] = f"{command_bin}:{environment['PATH']}"
+            environment["CYGPATH_CAPTURE"] = str(capture)
+
+            result = subprocess.run(
+                [BASH, str(root / "scripts" / "team.sh"), "migration-plan", "--format", "json"],
+                cwd=temporary,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(0, json.loads(result.stdout)["summary"]["folderCount"])
+            self.assertTrue(capture.exists(), "MSYS roots must pass through cygpath before native Python starts")
+            self.assertEqual(f"-m -- {root}", capture.read_text(encoding="utf-8").strip())
+            self.assertFalse(calls.exists(), "offline reporting must not start fake SQLcl")
+
+    def test_live_refuses_ambiguous_flags_before_connection(self) -> None:
+        secret = "SECRET_MARKER_FROM_ENV_6P"
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(
+                Path(temporary), env_contents=f"INVALID LINE {secret}\n"
+            )
+            cases = (
+                ("--env", "dev", "--format", "json"),
+                ("--live", "--format", "json"),
+                ("--live", "--env", "dev", "--format", "json"),
+            )
+            wrapper_results = {"team.sh": [], "team.ps1": []}
+            for entry in ("team.sh", "team.ps1"):
+                if entry.endswith("ps1") and not shutil.which("pwsh"):
+                    continue
+                launcher = [BASH] if entry.endswith("sh") else [shutil.which("pwsh"), "-NoProfile", "-File"]
+                for arguments in cases:
+                    result = subprocess.run(
+                        [*launcher, str(root / "scripts" / entry), "migration-plan", *arguments],
+                        cwd=temporary, env=environment, capture_output=True, text=True, check=False,
+                    )
+                    with self.subTest(entry=entry, arguments=arguments):
+                        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                        report = json.loads(result.stdout)
+                        self.assertEqual(1, report["schemaVersion"])
+                        self.assertIsNone(report["target"])
+                        self.assertTrue(report["diagnostics"])
+                        self.assertNotIn(secret, result.stdout + result.stderr)
+                        self.assertNotIn("invalid line", result.stderr)
+                        wrapper_results[entry].append((result.returncode, report))
+            if wrapper_results["team.ps1"]:
+                self.assertEqual(wrapper_results["team.sh"], wrapper_results["team.ps1"])
+            self.assertFalse(calls.exists(), "invalid live options must refuse before SQLcl is launched")
+
+    def test_live_report_uses_fake_sqlcl_only_for_version_gate(self) -> None:
+        env_contents = "\n".join((
+            "PROJECT_NAME=fixture",
+            "DEVELOPER_NAME=ALICE",
+            "DB_ENVIRONMENT=development",
+            "APEX_APP_ID=100",
+            "TABLES_SCHEMA=APP",
+            "TABLES_PREFIXES=*",
+            "TABLES_SQLCL_CONNECTION=dev-app",
+            "TABLES_EXPECTED_USER=APP",
+            "CODE_SCHEMA=APP",
+            "CODE_PREFIXES=*",
+            "CODE_SQLCL_CONNECTION=dev-app",
+            "CODE_EXPECTED_USER=APP",
+            "APEX_PARSING_SCHEMA=APP",
+            "APEX_SQLCL_CONNECTION=dev-app",
+            "APEX_EXPECTED_USER=APP",
+            "",
+        ))
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(Path(temporary), env_contents=env_contents)
+            folder = root / "migrations" / "2026-10-13_live-version-floor-r001"
+            folder.mkdir()
+            (folder / "001-step.sql").write_text("SELECT 1 FROM dual;\n", encoding="utf-8", newline="\n")
+            (folder / "checks.json").write_text(
+                '{"schemaVersion":1,"preconditions":[],"postconditions":[{"id":"ready","sql":"SELECT 1 FROM dual","expected":1}]}\n',
+                encoding="utf-8", newline="\n",
+            )
+            reports = []
+            for entry in ("team.sh", "team.ps1"):
+                if entry.endswith("ps1") and not shutil.which("pwsh"):
+                    continue
+                launcher = [BASH] if entry.endswith("sh") else [shutil.which("pwsh"), "-NoProfile", "-File"]
+                result = subprocess.run(
+                    [*launcher, str(root / "scripts" / entry), "migration-plan", "migrations/2026-10-13_live-version-floor-r001", "--live", "--env", "dev", "--format", "json"],
+                    cwd=temporary, env=environment, capture_output=True, text=True, check=False,
+                )
+                with self.subTest(entry=entry):
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual("", result.stderr)
+                    report = json.loads(result.stdout)
+                    self.assertEqual("live", report["mode"])
+                    self.assertIsNone(report["target"])
+                    self.assertIsNone(report["preflight"])
+                    self.assertIn("sqlcl-version-unavailable", [item["code"] for item in report["diagnostics"]])
+                    reports.append(report)
+            self.assertGreaterEqual(len(reports), 1)
+            self.assertTrue(all(report == reports[0] for report in reports))
+            self.assertTrue(calls.exists(), "valid live input must reach the fake SQLcl runtime gate")
+            self.assertEqual(["-V"] * len(reports), calls.read_text(encoding="utf-8").splitlines())
+
+    def test_malformed_migration_plan_options_remain_invalid_before_sqlcl(self) -> None:
+        if not shutil.which("pwsh"):
+            self.skipTest("PowerShell 7 is required for cross-wrapper migration-plan verification")
+        env_contents = "\n".join((
+            "PROJECT_NAME=fixture",
+            "DEVELOPER_NAME=ALICE",
+            "DB_ENVIRONMENT=development",
+            "APEX_APP_ID=100",
+            "TABLES_SCHEMA=APP",
+            "TABLES_PREFIXES=*",
+            "TABLES_SQLCL_CONNECTION=dev-app",
+            "TABLES_EXPECTED_USER=APP",
+            "CODE_SCHEMA=APP",
+            "CODE_PREFIXES=*",
+            "CODE_SQLCL_CONNECTION=dev-app",
+            "CODE_EXPECTED_USER=APP",
+            "APEX_PARSING_SCHEMA=APP",
+            "APEX_SQLCL_CONNECTION=dev-app",
+            "APEX_EXPECTED_USER=APP",
+            "",
+        ))
+        marker = "SECRET_ENV_MARKER_2R"
+        with tempfile.TemporaryDirectory() as temporary:
+            root, environment, calls = migration_plan_checkout(Path(temporary), env_contents=env_contents)
+            folder = root / "migrations" / "2026-10-13_option-values-r001"
+            folder.mkdir()
+            (folder / "001-step.sql").write_text("SELECT 1 FROM dual;\n", encoding="utf-8", newline="\n")
+            (folder / "checks.json").write_text(
+                '{"schemaVersion":1,"preconditions":[],"postconditions":[{"id":"ready","sql":"SELECT 1 FROM dual","expected":1}]}\n',
+                encoding="utf-8", newline="\n",
+            )
+            cases = (
+                ("invalid environment slash", ["migrations/2026-10-13_option-values-r001", "--live", "--env", "staging/", "--format=json"], True),
+                ("invalid abbreviated environment option", ["migrations/2026-10-13_option-values-r001", "--live", "--en", "dev/", "--format=json"], True),
+                ("invalid environment marker", ["migrations/2026-10-13_option-values-r001", "--live", "--env", marker + "/", "--format=json"], True),
+                ("invalid schema slash", ["migrations/2026-10-13_option-values-r001", "--schema", "ALPHA/", "--format=json"], True),
+                ("invalid format slash", ["migrations/2026-10-13_option-values-r001", "--format", "json/"], False),
+            )
+            wrapper_results = {"team.sh": [], "team.ps1": []}
+            for entry in ("team.sh", "team.ps1"):
+                launcher = [BASH] if entry.endswith("sh") else [shutil.which("pwsh"), "-NoProfile", "-File"]
+                for label, arguments, json_output in cases:
+                    result = subprocess.run(
+                        [*launcher, str(root / "scripts" / entry), "migration-plan", *arguments],
+                        cwd=temporary,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    with self.subTest(entry=entry, case=label):
+                        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                        self.assertEqual("", result.stderr)
+                        self.assertNotIn(marker, result.stdout + result.stderr)
+                        self.assertNotIn("SELECT", result.stdout + result.stderr)
+                        if json_output:
+                            report = json.loads(result.stdout)
+                            self.assertEqual(1, report["schemaVersion"])
+                            if label.startswith(("invalid environment", "invalid abbreviation")):
+                                self.assertIsNone(report["environment"])
+                        else:
+                            self.assertIn("Invalid migration-plan arguments", result.stdout)
+                        wrapper_results[entry].append((result.returncode, result.stdout))
+            self.assertEqual(wrapper_results["team.sh"], wrapper_results["team.ps1"])
+            self.assertFalse(calls.exists(), "malformed option values must not start fake SQLcl")
+
+    def test_migration_plan_powershell_classifies_only_folder_positionals(self) -> None:
+        powershell = shutil.which("pwsh")
+        if not powershell:
+            self.skipTest("PowerShell 7 is required for the portable argument classifier test")
+        helper = ROOT / "scripts" / "migration_plan_args.ps1"
+        arguments = [
+            "migrations\\first\\", "--live", "--env", "staging/", "--schema=ALPHA/", "--format", "json/",
+            "--repo-root", "C:\\repo with space [x]\\", "--format=json", "migrations\\second\\", "--env",
+            "--format=json", "migrations\\third\\",
+        ]
+        encoded_arguments = json.dumps(arguments)
+        command = (
+            "$ErrorActionPreference = 'Stop'; "
+            f". '{helper.as_posix()}'; "
+            f"$values = ConvertFrom-Json -AsHashtable @'\n{encoded_arguments}\n'@; "
+            "$items = @(Get-MigrationPlanArgumentKinds -Values $values); "
+            "$items | ConvertTo-Json -Compress -Depth 3"
+        )
+        result = subprocess.run(
+            [powershell, "-NoProfile", "-Command", command], cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        classified = json.loads(result.stdout)
+        self.assertEqual(
+            ["folder", "option", "option", "option-value", "option", "option", "option-value", "option", "option-value", "option", "folder", "option", "option", "folder"],
+            [item["kind"] for item in classified],
+        )
+        self.assertEqual(arguments, [item["value"] for item in classified])
+
     def run_bash_env_loader(self, environment: Path) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary:
             scripts = Path(temporary) / "scripts"

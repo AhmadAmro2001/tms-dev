@@ -159,7 +159,9 @@ class TemplateManifestTests(unittest.TestCase):
                 self.assertEqual(self.classify(path), ["projectOwned"])
 
     def test_migration_guide_is_template_owned_and_migration_payload_is_not(self) -> None:
-        self.assertEqual(self.classify("docs/migration-rules.md"), ["templateOwned"])
+        for path in ("docs/migration-rules.md", "docs/migration-planning.md"):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
         for path in (
             "migrations/2026-09-27_create-customers-r001/001-create-table.sql",
             "migrations/2026-09-27_create-customers-r001/checks.json",

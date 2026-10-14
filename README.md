@@ -17,6 +17,7 @@ separate file changes only and do not isolate a shared APEX application.
 | do a specific task, step by step | [Examples](docs/EXAMPLES.md) |
 | understand an error message | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | look up a command | [Command reference](#command-reference) |
+| inspect migration folders before selecting an order | [Migration planning](docs/migration-planning.md) |
 | see the 26.1 backport qualification | [APEX 26.1 qualification](docs/apex-26.1-qualification.md) |
 | know exactly when publish or migrate refuses | [publish-rules](docs/publish-rules.md), [migration-rules](docs/migration-rules.md) |
 | know which limits are deliberate | [Known limitations](docs/known-limitations.md) |
@@ -124,8 +125,8 @@ pwsh -File scripts/team.ps1 doctor
 
 `powershell.exe` (Windows PowerShell 5.1) works the same way. Windows also
 needs Git for Windows (the migration, comparison and deployment helpers run in
-its Bash), Python 3.10 or newer, and SQLcl on `PATH`. Four things trip people
-up there:
+its Bash), Python 3.10 or newer, and SQLcl on `PATH` for database operations.
+Offline `migration-plan` needs no SQLcl. Four things trip people up there:
 
 - **Script policy.** Windows PowerShell 5.1 on a client Windows starts with the
   `Restricted` policy and refuses to run any `.ps1`. Allow your own account to
@@ -133,7 +134,7 @@ up there:
   A copy downloaded as a ZIP carries a "from the internet" mark that
   `RemoteSigned` still blocks; clone with Git, or run
   `Get-ChildItem -Recurse -Filter *.ps1 | Unblock-File` once.
-- **Python.** The Bash helpers behind `check-conflicts`, `migrate`,
+- **Python.** The Bash helpers behind `migration-plan`, `check-conflicts`, `migrate`,
   `compare-schema` and `deploy` call `python3`, which a python.org or winget
   install does not provide (the Microsoft Store `python3.exe` is a stub when
   Python came from elsewhere). `team.ps1` finds a working Python (`python3`,
@@ -410,6 +411,20 @@ scripts/team.sh migrate \
   migrations/2026-09-27_create-customers-r001 --env dev
 ```
 
+Use `migration-plan` to review local folders, counts, hashes and evidence
+before choosing an explicit order. Offline reports need no `.env` or SQLcl;
+`--live` performs a guarded read-only preflight for selected folders and an
+explicit environment. It never applies SQL. See
+[migration planning](docs/migration-planning.md) for the report fields,
+deferred preconditions and ordering limits.
+
+```bash
+scripts/team.sh migration-plan --format markdown
+scripts/team.sh migration-plan \
+  migrations/2026-09-27_create-customers-r001 \
+  migrations/2026-09-28_assign-customers-r001 --live --env dev --format json
+```
+
 The offline `--local` checker analyzes selected files only. Live preflight
 compares the selected batch with the target catalog, but cannot see pending
 files in another developer's independent repository. Two developers can pass
@@ -549,6 +564,7 @@ restore those backups before retrying the upgrade.
 | `scripts/team.sh publish <id> --env dev` | Drift-check and import one app to DEV. |
 | `scripts/team.sh check-conflicts <folder> [...] --env <env>` | Preflight selected migrations against a live schema. |
 | `scripts/team.sh check-conflicts <folder> [...] --local` | Analyze selected migrations without a connection. |
+| `scripts/team.sh migration-plan [<folder> ...] [--schema NAME] [--format text\|json\|markdown]` | Inventory local migration folders or run a selected guarded read-only live preflight. |
 | `scripts/team.sh migrate <folder> [...] --env <env> [--verbose] [--rehearse] [--report <file>]` | Verify and apply selected migration folders, or rehearse eligible DML in one transaction and roll it back. |
 | `scripts/team.sh revise <folder> [--reason TEXT]` | Copy a migration to its next revision; the old folder stays unchanged. |
 | `scripts/team.sh revise --check <folder>` | Report whether local receipt or attempt evidence locks a folder; exit 0/1/2 for unlocked/locked/unknown. |
@@ -573,9 +589,9 @@ Exit status, the same in Bash and PowerShell:
 
 | Status | Meaning |
 | --- | --- |
-| 0 | Done; for `check-conflicts` and `compare-schema`, nothing found; for `revise --check`, the folder is unlocked. |
-| 1 | `check-conflicts` found conflicts, `compare-schema` found differences, `verify` found false checks, `revise --check` found a lock, a `[y/N]` prompt was declined, `upgrade-template` left `.template-new` files to merge, or `.env` is invalid (`project environment error: ...`). |
-| 2 | Refused or failed; the message says why and what changed. Also `migrate` interrupted while a SQL step runs ("may be partially applied"). |
+| 0 | Done; for `check-conflicts` and `compare-schema`, nothing found; for `migration-plan`, inventory is complete or live preflight has no conflict/error and no selected lock; for `revise --check`, the folder is unlocked. |
+| 1 | `check-conflicts` found conflicts, `compare-schema` found differences, `migration-plan` found a live conflict or selected immutable folder, `verify` found false checks, `revise --check` found a lock, a `[y/N]` prompt was declined, `upgrade-template` left `.template-new` files to merge, or `.env` is invalid (`project environment error: ...`). |
+| 2 | Refused or failed; the message says why and what changed. `migration-plan` uses 2 for invalid selection or incomplete evidence. Also `migrate` interrupted while a SQL step runs ("may be partially applied"). |
 | 130 / 143 | Stopped by Ctrl-C / by SIGTERM (`kill`). |
 
 SIGTERM is for Bash: `team.sh` hands its process to the command it runs, so a

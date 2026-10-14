@@ -12,6 +12,8 @@ Commands:
   publish <app_id> [--env dev] [--force]      Drift-check and import to DEV
   check-conflicts <folder> [...] (--env <env>|--local)
                                               Preflight selected migrations against local/live scope
+  migration-plan [<folder> ...] [--live --env <env>] [--schema NAME] [--format text|json|markdown]
+                                              Inventory migrations or run a guarded read-only preflight
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
@@ -30,7 +32,7 @@ Commands:
   upgrade-template [--source <url|path>] [--ref <ref>] [--dry-run]
                                               Update template-owned files from the template
 Options:
-  --schema <NAME>                             Run one configured schema (any command except upgrade-template)
+  --schema <NAME>                             Run one configured schema (except upgrade-template and migration-plan)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -48,7 +50,7 @@ command_name="$1"
 shift
 # --schema NAME is the one selection channel: strip it and export PROJECT_SCHEMA
 # so every child script's loader narrows to that schema.
-if [ "$command_name" != upgrade-template ]; then
+if [ "$command_name" != upgrade-template ] && [ "$command_name" != migration-plan ]; then
   schema_filtered=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -202,6 +204,20 @@ case "$command_name" in
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh check-conflicts <migration-folder> [...] (--env dev|staging|prod | --local)"
     PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}" \
       exec "$REPO_ROOT/scripts/check_conflicts.sh" "$@"
+    ;;
+  migration-plan)
+    migration_plan_root="$REPO_ROOT"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        if command -v cygpath >/dev/null 2>&1; then
+          # Native Windows Python cannot resolve Git Bash's /c/... spelling;
+          # mixed paths also survive brackets and spaces in the checkout root.
+          migration_plan_root="$(cygpath -m -- "$REPO_ROOT")"
+        fi
+        ;;
+    esac
+    cd "$REPO_ROOT"
+    exec python3 -m scripts.migration_plan --repo-root "$migration_plan_root" "$@"
     ;;
   migrate)
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh migrate <migration-folder> [...] --env dev|staging|prod [--rehearse] [--report <file>]"

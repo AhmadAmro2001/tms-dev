@@ -300,6 +300,33 @@ the resulting object. A concurrent change after preflight can still race the
 apply. The database's own DDL checks remain the final defense, and failures
 that may have partially committed require live reconciliation.
 
+## Migration planning reports
+
+Use `scripts/team.sh migration-plan` to inventory local folders before you
+choose an order. With no folder arguments, it discovers folders for display,
+grouped by schema and sorted deterministically; it does not infer dependencies
+or execution order. Explicit folders retain caller order and use the existing
+batch validation. Offline reports read only this checkout, need no `.env` or
+SQLcl, and never apply SQL. Their hashes and receipts describe local evidence,
+not today's database shape or pending migrations in another repository.
+
+`--schema` filters explicit schema folders. For a flat folder it is a
+caller-asserted owner, not a value inferred from configuration. Use
+`--live --env dev|staging|prod` with explicit folders from one resolved owner
+for a guarded read-only preflight. After the selection is validated, it reads
+`PROJECT_ENV_FILE` or the root `.env` and requires SQLcl 26.3.0.0 or newer.
+Live planning does not apply SQL, rehearse DML, or write receipts. It checks
+only the first selected folder's preconditions before a possible apply and
+reports later folders' preconditions as deferred to their apply boundary.
+Opaque SQL review notices remain visible.
+
+Exit 0 means a complete inventory, or a live preflight with no conflict/error
+and no selected lock. Exit 1 means a live known conflict or selected
+immutable folder. Exit 2 means invalid selection, unknown/incomplete evidence,
+or a target/preflight refusal. Reports are kept when a structured response is
+possible. See [migration planning](migration-planning.md) for the report keys,
+sanitized diagnostics and command examples.
+
 ## Environment targets
 
 Apply with an explicit environment:

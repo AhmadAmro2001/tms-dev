@@ -31,8 +31,12 @@ migrations in another independent repository, and concurrent changes can race
 preflight. Each migration requires read-only `checks.json` conditions. Keep
 SQL and checks immutable after any apply attempt; put a correction in the next
 revision. Environment status JSON is written only after a successful apply and
-fresh verification. See [the migration guide](../docs/migration-rules.md) for
-the full contract, target configuration, comparison, and recovery limits.
+fresh verification. Use `scripts/team.sh migration-plan` to inventory local
+folders before choosing an explicit order, or add `--live --env <env>` for its
+guarded read-only preflight. The report does not apply SQL or prove work pending
+in another checkout. See [migration planning](../docs/migration-planning.md)
+for its evidence boundary, and [the migration rules](../docs/migration-rules.md)
+for the full contract, target configuration, comparison, and recovery limits.
 
 Migration SQL runs with SQLcl substitution disabled. SQLcl client commands
 such as `SET`, `PROMPT`, `HOST`, `WHENEVER`, `SPOOL`, and `CONNECT` are rejected
