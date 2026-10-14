@@ -577,7 +577,7 @@ class PublishCliTests(unittest.TestCase):
     NAMES = (
         "publish_app.sh", "publish_app.sql", "load_env.sh", "check_db_target.sh", "export_apps.sql",
         "lookup_app_schema.sql", "verify_db_access.sql", "normalize_apx.sh", "record_export_state.py",
-        "verify_publish_state.py", "validate_app_source.py", "stamp_publish_version.py",
+        "verify_publish_state.py", "validate_app_source.py", "path_utils.py", "stamp_publish_version.py",
         "check_builder_drift.py", "check_builder_drift.sql", "sqlcl_safe.sh",
     )
 
@@ -811,7 +811,7 @@ class PowerShellPublishCliTests(PublishCliTests):
     NAMES = (
         "publish_app.ps1", "publish_app.sql", "load_env.ps1", "check_db_target.ps1", "invoke_sqlcl.ps1", "resolve_python.ps1",
         "export_apps.sql", "lookup_app_schema.sql", "verify_db_access.sql", "normalize_apx.ps1",
-        "record_export_state.py", "verify_publish_state.py", "validate_app_source.py",
+        "record_export_state.py", "verify_publish_state.py", "validate_app_source.py", "path_utils.py",
         "stamp_publish_version.py", "check_builder_drift.py", "check_builder_drift.sql",
     )
 

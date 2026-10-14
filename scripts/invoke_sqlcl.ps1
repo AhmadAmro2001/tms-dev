@@ -73,6 +73,8 @@ function Stop-SqlclChildren([System.Diagnostics.Process[]] $Children, [datetime]
 function Wait-SqlclProcess {
   param([Parameter(Mandatory = $true)] $Process)
   while (-not $Process.WaitForExit(200)) { }
+  # Complete asynchronous redirected-output events before a caller reads the transcript.
+  $Process.WaitForExit()
   if (($PSVersionTable.PSEdition -eq "Desktop") -or ($null -ne $IsWindows -and $IsWindows)) {
     # The launcher can end before the java.exe it started; give its children ten
     # seconds in all, as after an interrupt, instead of waiting for ever.

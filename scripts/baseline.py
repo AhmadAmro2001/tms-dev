@@ -37,6 +37,7 @@ from .migration_manifest import (
     validate_staged_migration,
 )
 from .migration_revision import inspect_migration_lock
+from .path_utils import relative_to_root
 from .rollout import RolloutError, exclude_ords_modules
 from .schema_catalog import (
     CatalogError,
@@ -2323,7 +2324,7 @@ def _baseline_family_state(root: Path, parent: Path, family: str) -> tuple[dict[
 
     state = []
     for revision, folder in sorted(existing.items()):
-        relative = folder.relative_to(root).as_posix()
+        relative = relative_to_root(folder, root).as_posix()
         lock = inspect_migration_lock(root, relative)
         if lock.status == "unknown":
             raise BaselineError(
@@ -2422,7 +2423,7 @@ def _build_migration_folder(root: Path, schema: str, family: str, files: Mapping
     existing, initial_state = _baseline_family_state(root, parent, family)
     if existing:
         latest = existing[max(existing)]
-        relative = latest.relative_to(root).as_posix()
+        relative = relative_to_root(latest, root).as_posix()
         lock = inspect_migration_lock(root, relative)
         if _folder_contents_match(latest, files):
             if lock.status == "unlocked":
@@ -2435,7 +2436,7 @@ def _build_migration_folder(root: Path, schema: str, family: str, files: Mapping
         raise BaselineError(f"migration revisions are exhausted for {schema}/{family}")
     folder = parent / f"{dt.date.today().isoformat()}_{family}-r{revision:03d}"
     if folder.exists() or folder.is_symlink():
-        raise BaselineError(f"refusing to overwrite an existing migration folder: {folder.relative_to(root).as_posix()}")
+        raise BaselineError(f"refusing to overwrite an existing migration folder: {relative_to_root(folder, root).as_posix()}")
 
     scratch_root = root / "scratch"
     if scratch_root.is_symlink() or (scratch_root.exists() and not scratch_root.is_dir()):
@@ -2444,7 +2445,7 @@ def _build_migration_folder(root: Path, schema: str, family: str, files: Mapping
     stage = Path(tempfile.mkdtemp(prefix="baseline-stage-", dir=scratch_root))
     try:
         _secure_private_migration_stage(stage)
-        relative = folder.relative_to(root).as_posix()
+        relative = relative_to_root(folder, root).as_posix()
         _write_migration_stage(stage, files)
         try:
             stage_device = stage.stat().st_dev
@@ -2634,7 +2635,7 @@ def _build(args, config: Mapping, values: Mapping[str, str], scratch: Path) -> N
                             readme += "\n## Target precondition differences\n\n" + "\n".join(f"- {item}" for item in data_differences) + "\n"
                 installed = _build_migration_folder(ROOT, target_target.schema, family, _migration_bytes(steps, checks, readme))
                 if installed is not None:
-                    created.append(installed.relative_to(ROOT.resolve()).as_posix())
+                    created.append(relative_to_root(installed, ROOT.resolve()).as_posix())
     except Exception as error:
         if created:
             created_paths = ", ".join(created)

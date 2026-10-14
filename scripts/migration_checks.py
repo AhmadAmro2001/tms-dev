@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db_targets import Target
+from .path_utils import relative_to_root
 from .migration_manifest import (
     CHECK_ID_RE,
     Migration,
@@ -1664,7 +1665,7 @@ def _changed_selected_input(
 def _migration_input_hashes(repo_root: Path, migrations: Sequence[Migration]) -> dict[str, str]:
     hashes: dict[str, str] = {}
     for migration in migrations:
-        folder = migration.folder.resolve().relative_to(repo_root).as_posix()
+        folder = relative_to_root(migration.folder.resolve(), repo_root).as_posix()
         hashes.update({f"{folder}/{source_file.name}": source_file.sha256 for source_file in migration.files})
         hashes[f"{folder}/checks.json"] = migration.checks_sha256
     return hashes
@@ -1683,7 +1684,7 @@ def _first_selected_folder_path(repo_root: Path, folders: Sequence[str]) -> str:
     try:
         selected = Path(folders[0])
         candidate = selected if selected.is_absolute() else repo_root / selected
-        return candidate.resolve().relative_to(repo_root).as_posix()
+        return relative_to_root(candidate.resolve(), repo_root).as_posix()
     except (OSError, RuntimeError, TypeError, ValueError):
         return "migrations"
 

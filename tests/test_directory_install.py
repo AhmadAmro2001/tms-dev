@@ -120,6 +120,24 @@ class DirectoryInstallTests(unittest.TestCase):
         self.assertFalse(destination.exists())
         self.assertEqual(self.snapshot_tree(stage), before_stage)
 
+    def test_windows_rename_uses_the_pinned_parent_and_refuses_replacement(self) -> None:
+        api = self.require_installer()
+        kernel32 = Mock()
+        ntdll = Mock()
+        ntdll.NtSetInformationFile.return_value = 0
+
+        with patch.object(api, "_windows_apis", return_value=(kernel32, ntdll)):
+            api._rename_windows_noreplace(101, 202, "bundle-r001")
+
+        call = ntdll.NtSetInformationFile.call_args
+        self.assertIsNotNone(call, "the handle-relative NT rename must be used")
+        rename_info = api.ctypes.cast(call.args[2], api.ctypes.POINTER(api._WindowsFileRenameInfo)).contents
+        self.assertEqual(call.args[0], 101)
+        self.assertEqual(rename_info.ReplaceIfExists, 0)
+        self.assertEqual(rename_info.RootDirectory, 202)
+        self.assertEqual(rename_info.FileNameLength, len("bundle-r001".encode("utf-16-le")))
+        self.assertEqual(call.args[4], api._WINDOWS_FILE_RENAME_INFORMATION_CLASS)
+
     def test_windows_platform_dispatch_uses_its_exclusive_rename(self) -> None:
         api = self.require_installer()
         stage = self.make_stage()
@@ -136,6 +154,7 @@ class DirectoryInstallTests(unittest.TestCase):
         rename.assert_called_once()
         self.assertTrue(destination.is_dir())
 
+    @unittest.skipUnless(sys.platform == "darwin", "native Darwin exclusive-rename qualification")
     def test_darwin_dispatch_uses_renamex_np_with_exclusive_flag(self) -> None:
         api = self.require_installer()
         stage = self.make_stage()

@@ -45,6 +45,7 @@ class PublishAppCliTests(unittest.TestCase):
             "record_export_state.py",
             "verify_publish_state.py",
             "validate_app_source.py",
+            "path_utils.py",
             "stamp_publish_version.py",
         ):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
@@ -245,7 +246,7 @@ class PublishAppCliTests(unittest.TestCase):
             args = sql_log.read_text(encoding="utf-8").splitlines()
             self.assertIn("-name", args)
             self.assertIn("docker-demo", args)
-            self.assertIn("@" + fake_sqlcl.native(runner.parent / "publish_app.sql"), args)
+            self.assertIn("@" + fake_sqlcl.native((runner.parent / "publish_app.sql").resolve()), args)
             self.assertIn(fake_sqlcl.native(root / "apps/DEMO/100"), args)
             self.assertIn(fake_sqlcl.native(root / "apps/DEMO/100" / "deployments/dev.json"), args)
             self.assertNotEqual(sql_cwd.read_text(encoding="utf-8").strip(), str(root / "apps/DEMO/100"))
@@ -1138,6 +1139,7 @@ class PublishAppCliTests(unittest.TestCase):
                     "record_export_state.py",
                     "verify_publish_state.py",
                     "validate_app_source.py",
+                    "path_utils.py",
                     "stamp_publish_version.py",
                 ):
                     shutil.copy2(ROOT / "scripts" / name, scripts / name)

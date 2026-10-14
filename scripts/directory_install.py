@@ -44,7 +44,7 @@ _WINDOWS_OBJ_CASE_INSENSITIVE = 0x00000040
 _WINDOWS_OBJ_DONT_REPARSE = 0x00001000
 _WINDOWS_FILE_ATTRIBUTE_DIRECTORY = 0x00000010
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
-_WINDOWS_FILE_RENAME_INFO = 3
+_WINDOWS_FILE_RENAME_INFORMATION_CLASS = 10
 _WINDOWS_ERROR_FILE_EXISTS = 80
 _WINDOWS_ERROR_ALREADY_EXISTS = 183
 _WINDOWS_ERROR_NOT_SAME_DEVICE = 17
@@ -313,14 +313,6 @@ def _windows_apis():
         ctypes.POINTER(_WindowsByHandleFileInformation),
     ]
     kernel32.GetFileInformationByHandle.restype = ctypes.c_int
-    kernel32.SetFileInformationByHandle.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_int,
-        ctypes.c_void_p,
-        ctypes.c_uint32,
-    ]
-    kernel32.SetFileInformationByHandle.restype = ctypes.c_int
-
     ntdll.NtCreateFile.argtypes = [
         ctypes.POINTER(ctypes.c_void_p),
         ctypes.c_uint32,
@@ -335,6 +327,14 @@ def _windows_apis():
         ctypes.c_uint32,
     ]
     ntdll.NtCreateFile.restype = ctypes.c_int32
+    ntdll.NtSetInformationFile.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(_WindowsIoStatusBlock),
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+    ]
+    ntdll.NtSetInformationFile.restype = ctypes.c_int32
     ntdll.RtlNtStatusToDosError.argtypes = [ctypes.c_int32]
     ntdll.RtlNtStatusToDosError.restype = ctypes.c_uint32
     return kernel32, ntdll
@@ -573,7 +573,7 @@ def _pin_windows_entry(path: Path, *, allow_missing_leaf: bool, label: str) -> I
 
 def _rename_windows_noreplace(stage_handle: object, destination_parent: object, destination_name: str) -> None:
     """Rename an opened directory handle relative to a pinned parent, without replacement."""
-    kernel32, _ = _windows_apis()
+    _, ntdll = _windows_apis()
     if not destination_name or destination_name in {".", ".."} or any(
         char in destination_name for char in ("/", "\\", ":")
     ):
@@ -591,13 +591,16 @@ def _rename_windows_noreplace(stage_handle: object, destination_parent: object, 
         encoded_name,
         len(encoded_name),
     )
-    if not kernel32.SetFileInformationByHandle(
+    io_status = _WindowsIoStatusBlock()
+    status = ntdll.NtSetInformationFile(
         stage_handle,
-        _WINDOWS_FILE_RENAME_INFO,
+        ctypes.byref(io_status),
         ctypes.cast(rename_buffer, ctypes.c_void_p),
         buffer_size,
-    ):
-        raise _windows_last_error(kernel32)
+        _WINDOWS_FILE_RENAME_INFORMATION_CLASS,
+    )
+    if status < 0:
+        raise _windows_nt_error(ntdll, status)
 
 
 def _rename_error(exc: OSError, destination: Path) -> DirectoryInstallError:
@@ -619,7 +622,7 @@ def install_directory_exclusive(stage: Path, destination: Path) -> None:
 
     Linux uses descriptor-relative ``renameat2(RENAME_NOREPLACE)``; Darwin uses
     ``renameatx_np(RENAME_EXCL)``; Windows renames the opened stage handle with
-    ``SetFileInformationByHandle(FileRenameInfo)`` and a pinned destination
+    ``NtSetInformationFile(FileRenameInformation)`` and a pinned destination
     parent. Every parent component is opened relative to the preceding pinned
     directory and rejects symbolic links/reparse points. Unsupported platforms
     or filesystems refuse rather than emulate exclusivity with a racy check.

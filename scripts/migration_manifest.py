@@ -16,6 +16,7 @@ from pathlib import Path
 from collections.abc import Mapping, Sequence
 
 from .migration_attempts import EVENT_FILENAME_RE, MigrationAttemptError, read_attempt_events
+from .path_utils import relative_to_root
 from .validate_migration import validate_sql_only
 
 
@@ -520,7 +521,7 @@ def load_migration(repo_root: Path, relative_folder: str) -> Migration:
     if folder.is_symlink():
         raise MigrationManifestError("symbolic links are not allowed in migration paths")
     try:
-        folder.resolve(strict=True).relative_to(root)
+        relative_to_root(folder.resolve(strict=True), root)
     except (OSError, ValueError) as exc:
         raise MigrationManifestError(f"migration folder is missing or outside the repository: {_printable(relative_folder)}") from exc
     if not folder.is_dir():
@@ -677,7 +678,7 @@ def verify_loaded_input_hashes(
     root = repo_root.resolve()
     for migration in migrations:
         folder = migration.folder.resolve()
-        relative_folder = folder.relative_to(root).as_posix()
+        relative_folder = relative_to_root(folder, root).as_posix()
         for source_file in migration.files:
             relative = f"{relative_folder}/{source_file.name}"
             observed = hashlib.sha256(source_file.source).hexdigest()
@@ -812,7 +813,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if arguments.folders:
                 raise MigrationManifestError("--list does not accept folder arguments")
             for folder in list_migration_folders(arguments.repo_root):
-                print(folder.relative_to(arguments.repo_root.resolve()).as_posix())
+                print(relative_to_root(folder, arguments.repo_root.resolve()).as_posix())
             return 0
         batch = load_batch(arguments.repo_root, arguments.folders)
         for migration in batch:

@@ -20,6 +20,7 @@ from .migration_checks import (
     run_checks,
 )
 from .migration_manifest import Migration, MigrationManifestError
+from .path_utils import relative_to_root
 from .schema_catalog import CatalogError, capture_inventory
 from .sqlcl_session import SqlclError, run_sqlcl, safe_rmtree
 
@@ -551,7 +552,7 @@ def rehearse_batch(
                 return exit_code
 
         for item in frozen:
-            relative = item.original.folder.relative_to(repo_root).as_posix()
+            relative = relative_to_root(item.original.folder, repo_root).as_posix()
             current = migration_runner.load_migration(repo_root, relative)
             if current.payload_digest != item.original.payload_digest:
                 raise MigrationManifestError(f"source changed after rehearsal review: {item.original.folder.name}")
@@ -614,7 +615,7 @@ def rehearse_batch(
             retain_evidence = True
 
         for item in frozen:
-            relative = item.original.folder.relative_to(repo_root).as_posix()
+            relative = relative_to_root(item.original.folder, repo_root).as_posix()
             current = migration_runner.load_migration(repo_root, relative)
             if current.payload_digest != item.original.payload_digest:
                 report["errors"].append(f"local source changed during rehearsal: {item.original.folder.name}")

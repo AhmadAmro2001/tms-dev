@@ -190,6 +190,7 @@ def _smoke_test_extractor(extractor_path: Path) -> tuple[bool, str]:
             "    )\n"
             ")\n",
             encoding="utf-8",
+            newline="\n",
         )
         spec = importlib.util.spec_from_file_location(module_name, extractor_path)
         if spec is None or spec.loader is None:
