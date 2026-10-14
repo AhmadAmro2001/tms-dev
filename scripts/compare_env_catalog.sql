@@ -925,7 +925,7 @@ BEGIN
   l_identity.put('edition', SYS_CONTEXT('USERENV', 'CURRENT_EDITION_NAME'));
   SELECT MAX(version) INTO l_db_version
     FROM product_component_version
-   WHERE product LIKE 'Oracle Database%';
+   WHERE product LIKE 'Oracle%Database%';
   l_identity.put('database_version', l_db_version);
 
   add_query_section('tables', q'~
@@ -954,7 +954,7 @@ BEGIN
       'columns' VALUE COALESCE((SELECT JSON_ARRAYAGG(cc.column_name ORDER BY cc.position RETURNING CLOB)
         FROM all_cons_columns cc WHERE cc.owner = c.owner AND cc.constraint_name = c.constraint_name), TO_CLOB('[]')) FORMAT JSON,
       'referenced_table' VALUE CASE WHEN c.r_constraint_name IS NULL THEN NULL ELSE
-        CASE WHEN c.r_owner = c_schema THEN '<CONFIGURED_SCHEMA>' ELSE c.r_owner END || '.' ||
+        CASE WHEN c.r_owner = c.owner THEN '<CONFIGURED_SCHEMA>' ELSE c.r_owner END || '.' ||
         (SELECT r.table_name FROM all_constraints r WHERE r.owner = c.r_owner AND r.constraint_name = c.r_constraint_name) END,
       'referenced_columns' VALUE COALESCE((SELECT JSON_ARRAYAGG(rc.column_name ORDER BY rc.position RETURNING CLOB)
         FROM all_cons_columns rc WHERE rc.owner = c.r_owner AND rc.constraint_name = c.r_constraint_name), TO_CLOB('[]')) FORMAT JSON,
@@ -1115,7 +1115,7 @@ BEGIN
   IF selected('versions') THEN
     l_rows := JSON_ARRAY_T();
     l_pages := JSON_ARRAY_T();
-    SELECT MAX(version) INTO l_db_version FROM product_component_version WHERE product LIKE 'Oracle Database%';
+    SELECT MAX(version) INTO l_db_version FROM product_component_version WHERE product LIKE 'Oracle%Database%';
     BEGIN
     EXECUTE IMMEDIATE 'SELECT APEX_RELEASE.VERSION_NO FROM DUAL' INTO l_apex_version;
     EXCEPTION

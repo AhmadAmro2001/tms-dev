@@ -7,6 +7,7 @@ import gzip
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 import zlib
@@ -295,6 +296,26 @@ class EnvironmentComparisonTests(unittest.TestCase):
 
         self.assertEqual(report["exit_code"], 2, report)
         self.assertEqual(report["sections"]["java-mle"]["status"], "incomplete")
+
+    def test_catalog_sql_dynamic_queries_do_not_name_plsql_constants(self) -> None:
+        """A q'~...~' section query runs as SQL: a PL/SQL constant in it fails with ORA-00904 on a real database."""
+        sql = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
+        queries = re.findall(r"q'~(.*?)~'", sql, flags=re.DOTALL)
+        self.assertGreater(len(queries), 10)
+        constants = {name.lower() for name in re.findall(r"^\s*(c_[a-z0-9_]+)\s+CONSTANT\b", sql, flags=re.MULTILINE | re.IGNORECASE)}
+        self.assertIn("c_schema", constants)
+        for query in queries:
+            for constant in constants:
+                self.assertIsNone(
+                    re.search(rf"\b{constant}\b", query, flags=re.IGNORECASE),
+                    f"dynamic SQL names the PL/SQL constant {constant}: {query[:80]!r}",
+                )
+
+    def test_catalog_sql_reads_the_database_version_for_every_oracle_product_name(self) -> None:
+        """Oracle 26ai reports 'Oracle AI Database 26ai ...', which 'Oracle Database%' does not match."""
+        sql = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
+        self.assertNotIn("LIKE 'Oracle Database%'", sql)
+        self.assertEqual(sql.count("LIKE 'Oracle%Database%'"), 2)
 
     def test_view_and_source_hashes_chain_ordered_body_lines(self) -> None:
         sql = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
