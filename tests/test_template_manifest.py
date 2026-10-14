@@ -86,6 +86,18 @@ class TemplateManifestTests(unittest.TestCase):
     def test_apex_261_qualification_is_template_only(self) -> None:
         self.assertEqual(self.classify("docs/apex-26.1-qualification.md"), ["templateOnly"])
 
+    def test_baseline_and_environment_guides_are_template_owned(self) -> None:
+        for path in (
+            "docs/compare-env.md",
+            "docs/baseline.md",
+            "docs/baseline.example.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+        self.assertEqual(self.manifest["schemaVersion"], 1)
+        self.assertIn("docs/apex-26.1-qualification.md", self.manifest["templateOnly"])
+        self.assertIn("docs/superpowers/**", self.manifest["templateOnly"])
+
     def test_migration_revision_files_are_covered_by_template_ownership(self) -> None:
         for path in (
             "scripts/migration_revision.py",

@@ -287,6 +287,23 @@ report.
 - `SELF_COMPARISON`: both sides resolve to the same database and schema, so
   there is nothing to compare. Check your staging settings.
 
+### Generate an optional baseline bundle
+
+After reviewing the configured baseline capture, combine the generated
+structure, grants and code folders while keeping reference data separate with
+`--bundle <name>`:
+
+```bash
+scripts/team.sh baseline build --from dev --to staging --bundle customer-status
+scripts/team.sh baseline build --from dev --to staging --bundle customer-status --data
+```
+
+The first command creates up to one `baseline-bundle-customer-status` folder
+per target schema instead of three granular folders. The second adds a
+separate `baseline-data` folder. Review the ordered SQL provenance and checks,
+then run `check-conflicts` and `migrate` on the generated folders in the
+documented order.
+
 ## 9. Update the template
 
 **When:** the template gained fixes or features and you want them.

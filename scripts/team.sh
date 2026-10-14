@@ -22,9 +22,22 @@ Commands:
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
   rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]
                                               Confirm and execute a frozen deployment manifest
+  compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown]
+              [--emit-dba-script <file>]
+                                              Compare complete environment catalogs by name, read-only
   compare-schema [--from <env>] (--to <env>|--env <env>)
                 (--object <name>|--pattern <glob>) [...] [--format text|json]
                                               Compare selected live schema objects read-only
+  baseline export-source --from <env> [--scratch <dir>]
+                                              Export configured exact stored source and settings
+  baseline export-grants --from <env> [--scratch <dir>]
+                                              Export configured object and system grants
+  baseline export-data --from <env> [--scratch <dir>]
+                                              Export allow-listed reference rows without excluded columns
+  baseline build --to <env> [--from <env>] [--data] [--bundle <name>]
+                                              Build granular or bundled baseline migrations and optional reference data
+  baseline filter-ords --exclude-module NAME [...] --input <file> --output <file>
+                                              Remove complete named modules from an ORDS export
   backup-db                                   Refresh the table and code mirrors (and ORDS, when configured)
   backup-ords                                 Export ORDS metadata read-only to database/<SCHEMA>/ords/schema.sql
   deploy <app_id> --env <staging|prod> [--manual]
@@ -36,6 +49,7 @@ Options:
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
+  <ENV>_DBA_SQLCL_CONNECTION                   Read-only compare-env and baseline grant-export connection
 USAGE
 }
 
@@ -243,6 +257,39 @@ case "$command_name" in
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh compare-schema [--from <env>] (--to <env>|--env <env>) (--object <name>|--pattern <glob>) [...]"
     PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}" \
       exec "$REPO_ROOT/scripts/compare_schema.sh" "$@"
+    ;;
+  compare-env)
+    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown] [--emit-dba-script <file>]"
+    for compare_argument in "$@"; do
+      if [ "$compare_argument" = "--help" ] || [ "$compare_argument" = "-h" ]; then
+        cd "$REPO_ROOT"
+        exec python3 -m scripts.compare_schema compare-env "$@"
+      fi
+    done
+    PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}" \
+      exec "$REPO_ROOT/scripts/compare_schema.sh" compare-env "$@"
+    ;;
+  baseline)
+    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh baseline <export-source|export-grants|export-data|build|filter-ords> [options]"
+    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+      cd "$REPO_ROOT"
+      exec python3 -m scripts.baseline "$@"
+    fi
+    for baseline_argument in "$@"; do
+      if [ "$baseline_argument" = "--help" ] || [ "$baseline_argument" = "-h" ]; then
+        cd "$REPO_ROOT"
+        exec python3 -m scripts.baseline "$@"
+      fi
+    done
+    if [ "$1" = "filter-ords" ]; then
+      cd "$REPO_ROOT"
+      exec python3 -m scripts.baseline "$@"
+    fi
+    PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}"
+    # shellcheck source=load_env.sh
+    source "$REPO_ROOT/scripts/load_env.sh" "$PROJECT_ENV_FILE"
+    cd "$REPO_ROOT"
+    exec python3 -m scripts.baseline "$@"
     ;;
   backup-db)
     [ "$#" -eq 0 ] || fail "backup-db does not accept arguments"

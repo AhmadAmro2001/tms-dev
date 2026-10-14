@@ -18,6 +18,7 @@ DOCS = (
     ROOT / "migrations" / "README.md",
     ROOT / "docs" / "migration-planning.md",
     ROOT / "docs" / "migration-rules.md",
+    ROOT / "docs" / "compare-env.md",
     ROOT / "docs" / "publish-rules.md",
     ROOT / "docs" / "GETTING_STARTED.md",
     ROOT / "docs" / "EXAMPLES.md",
@@ -83,6 +84,20 @@ RETIRED_TERMS = (
 
 
 class DocumentationContractTests(unittest.TestCase):
+    def test_compare_env_guide_documents_the_read_only_catalog_contract(self) -> None:
+        guide = (ROOT / "docs" / "compare-env.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("docs/compare-env.md", readme)
+        for phrase in (
+            "does not write to either database",
+            "SQLcl 26.3.0.0",
+            "Use `--section` more than once",
+            "not compared",
+            "not a source export",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, guide)
+
     def test_active_team_guidance_uses_the_current_cli(self) -> None:
         contents = {path: path.read_text(encoding="utf-8") for path in DOCS}
         for path, document in contents.items():
@@ -207,6 +222,24 @@ class DocumentationContractTests(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, guide)
         self.assertNotIn("migrations/<developer>/", guide)
+
+    def test_baseline_bundling_documents_counts_data_and_recovery_limits(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        baseline = (ROOT / "docs" / "baseline.md").read_text(encoding="utf-8")
+        rules = (ROOT / "docs" / "migration-rules.md").read_text(encoding="utf-8")
+        examples = (ROOT / "docs" / "EXAMPLES.md").read_text(encoding="utf-8")
+        for content in (readme, baseline, rules, examples):
+            with self.subTest(document="baseline guidance"):
+                self.assertIn("--bundle <name>", content)
+                self.assertIn("baseline-bundle-", content)
+                self.assertIn("reference data", content.lower())
+        self.assertIn("Oracle DDL", baseline)
+        self.assertIn("Oracle DDL", rules)
+        normalized_baseline = " ".join(baseline.split())
+        self.assertIn("three-family result becomes one", normalized_baseline)
+        self.assertIn("four-folder result becomes two", normalized_baseline)
+        self.assertIn("independent repository", rules)
+        self.assertIn("private ignored `scratch/`", baseline)
 
     def test_migration_planning_guide_documents_evidence_and_selection_rules(self) -> None:
         planning = (ROOT / "docs" / "migration-planning.md").read_text(encoding="utf-8")

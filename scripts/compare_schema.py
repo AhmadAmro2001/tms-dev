@@ -13,11 +13,12 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+from . import migration_runtime
 from .db_targets import Target, TargetResolutionError, resolve_target
 from .schema_catalog import (
     CatalogError,
@@ -1355,6 +1356,18 @@ def capture_environment_catalog(
         raise
 
 
+def _empty_environment_capture(environment: str, schema: str, error: BaseException) -> dict:
+    return {
+        "environment": environment,
+        "schema": schema,
+        "identity": {},
+        "coverage": {"sections": {}},
+        "sections": {},
+        "unavailable": {},
+        "capture_error": str(error),
+    }
+
+
 def _merge_dba_capture(base: dict, privileged: dict) -> dict:
     if not same_database_scope(base.get("identity", {}), privileged.get("identity", {})):
         raise CatalogError("DBA compare-env connection did not reach the same database, container, schema, and edition as the environment connection")
@@ -1370,6 +1383,174 @@ def _merge_dba_capture(base: dict, privileged: dict) -> dict:
     if privileged.get("capture_error"):
         merged["capture_error"] = str(privileged["capture_error"])
     return merged
+
+
+def _compare_env_parser() -> _ArgumentParser:
+    parser = _ArgumentParser(description="Compare environment catalog structure by object name; the command is read-only.")
+    parser.add_argument("--from", required=True, choices=("dev", "staging", "prod"), dest="source")
+    parser.add_argument("--to", required=True, choices=("dev", "staging", "prod"), dest="target")
+    parser.add_argument("--section", action="append", choices=COMPARE_ENV_SECTIONS, default=[], help="compare one section; repeat to select several (default: all)")
+    parser.add_argument("--format", choices=("text", "json", "markdown"), default="text")
+    parser.add_argument("--emit-dba-script", metavar="FILE", help="write an additive DBA script for the captured grants, ACEs, and ORDS schema enablement")
+    parser.add_argument("--schema", help="configured schema to compare; required when several are configured")
+    return parser
+
+
+def _write_dba_script(path_value: str, script: str) -> Path:
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = ROOT / path
+    path = path.absolute()
+    if path.is_symlink():
+        raise ValueError("--emit-dba-script refuses a symbolic link")
+    if path.exists() and not path.is_file():
+        raise ValueError("--emit-dba-script must name a regular file")
+    if not path.parent.is_dir():
+        raise ValueError("--emit-dba-script parent directory must already exist")
+    temporary_name = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as output:
+            output.write(script)
+        os.chmod(temporary_name, 0o600)
+        os.replace(temporary_name, path)
+    except OSError:
+        if temporary_name:
+            try:
+                os.unlink(temporary_name)
+            except OSError:
+                pass
+        raise
+    return path
+
+
+def main_compare_env(
+    argv: Sequence[str] | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+    run_dir: Path | None = None,
+    capture_environment_fn: Callable = capture_environment_catalog,
+) -> int:
+    parser = _compare_env_parser()
+    try:
+        args = parser.parse_args(argv)
+        if args.source == args.target:
+            raise ValueError("source and target environment labels must differ")
+        sections = _validate_compare_env_sections(args.section)
+    except SystemExit as error:
+        return int(error.code or 0)
+    except ValueError as error:
+        print(f"compare-env error: {error}", file=sys.stderr)
+        return 2
+
+    values = os.environ if environ is None else environ
+    schema = args.schema or values.get("PROJECT_SCHEMA") or None
+    try:
+        source_target = resolve_target(values, args.source, "read", schema=schema)
+        target_target = resolve_target(values, args.target, "read", schema=schema)
+    except TargetResolutionError as error:
+        print(f"compare-env error: {error}", file=sys.stderr)
+        return 2
+
+    try:
+        migration_runtime.require_migration_sqlcl_version()
+    except RuntimeError as error:
+        print(f"compare-env error: {error}", file=sys.stderr)
+        return 2
+
+    own_run_dir = run_dir is None
+    if own_run_dir:
+        scratch = ROOT / "scratch"
+        scratch.mkdir(mode=0o700, parents=True, exist_ok=True)
+        run_dir = Path(tempfile.mkdtemp(prefix="compare-env-", dir=scratch))
+    else:
+        run_dir = Path(run_dir)
+        run_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    dba_sections = tuple(section for section in sections if section in COMPARE_ENV_DBA_SECTIONS)
+    normal_sections = tuple(section for section in sections if section not in COMPARE_ENV_DBA_SECTIONS)
+    if not normal_sections:
+        # The unprivileged session supplies the database identity for a DBA-only selection.
+        normal_sections = ("versions",)
+    catalogs: dict[str, dict] = {}
+    dba_available: dict[str, bool] = {}
+    keep_logs = True
+    try:
+        for environment, target in ((args.source, source_target), (args.target, target_target)):
+            try:
+                catalog_value = capture_environment_fn(target, environment, normal_sections, run_dir)
+            except (CatalogError, OSError, RuntimeError) as error:
+                catalog_value = _empty_environment_capture(environment, target.schema, error)
+            dba_key = f"{environment.upper()}_DBA_SQLCL_CONNECTION"
+            dba_connection = values.get(dba_key, "").strip()
+            dba_available[environment] = bool(dba_connection)
+            if dba_sections and dba_connection:
+                try:
+                    privileged_target = replace(target, connection=dba_connection)
+                    privileged = capture_environment_fn(
+                        privileged_target, environment, dba_sections, run_dir, dba_capture=True,
+                    )
+                    catalog_value = _merge_dba_capture(catalog_value, privileged)
+                except (CatalogError, OSError, RuntimeError) as error:
+                    catalog_value["capture_error"] = f"DBA catalog capture failed: {error}"
+            catalogs[environment] = catalog_value
+
+        prefixes = []
+        for key in ("TABLES_PREFIXES", "CODE_PREFIXES"):
+            value = values.get(key, "")
+            if value == "*":
+                prefixes = ["*"]
+                break
+            prefixes.extend(item for item in value.split(",") if item)
+        report = compare_environment_catalogs(
+            catalogs[args.source], catalogs[args.target],
+            sections=sections,
+            dba_connections=dba_available,
+            prefixes=tuple(dict.fromkeys(prefixes)),
+        )
+        source_identity = catalogs[args.source].get("identity", {})
+        target_identity = catalogs[args.target].get("identity", {})
+        if (
+            isinstance(source_identity, Mapping)
+            and isinstance(target_identity, Mapping)
+            and same_database_scope(source_identity, target_identity)
+        ):
+            report["blockers"].append({
+                "section": "identity",
+                "side": "both",
+                "message": "source and target resolve to the same observed database, container, schema, and edition scope",
+            })
+            report["blockers"].sort(
+                key=lambda item: (item.get("section", ""), item.get("side", ""), item.get("name", ""), item.get("message", "")),
+            )
+            report["readiness"] = "blocked"
+            report["exit_code"] = 2
+        if args.emit_dba_script:
+            if report["exit_code"] == 2:
+                print("compare-env error: cannot emit a DBA script from a blocked comparison", file=sys.stderr)
+                print(render_environment_report(report, args.format))
+                return 2
+            try:
+                output_path = _write_dba_script(args.emit_dba_script, emit_dba_script(report))
+            except (OSError, ValueError) as error:
+                print(f"compare-env error: {error}", file=sys.stderr)
+                print(render_environment_report(report, args.format))
+                return 2
+            report["dbaScript"] = str(output_path)
+        print(render_environment_report(report, args.format))
+        keep_logs = report["exit_code"] == 2
+        return int(report["exit_code"])
+    except KeyboardInterrupt:
+        keep_logs = False
+        print("compare-env interrupted; it only reads, so nothing was changed", file=sys.stderr)
+        return 130
+    except (CatalogError, OSError, RuntimeError, ValueError) as error:
+        print(f"compare-env error: {error}", file=sys.stderr)
+        return 2
+    finally:
+        if own_run_dir and not keep_logs:
+            safe_rmtree(run_dir)
+
 
 
 def _empty_snapshot(inventory: SchemaInventory) -> SchemaSnapshot:
@@ -1458,10 +1639,17 @@ def main(
     run_dir: Path | None = None,
     capture_inventory_fn: Callable = capture_inventory,
     capture_snapshot_fn: Callable = capture_snapshot,
+    capture_environment_fn: Callable = capture_environment_catalog,
 ) -> int:
+    actual_argv = list(sys.argv[1:] if argv is None else argv)
+    if actual_argv and actual_argv[0] == "compare-env":
+        return main_compare_env(
+            actual_argv[1:], environ=environ, run_dir=run_dir,
+            capture_environment_fn=capture_environment_fn,
+        )
     parser = _parser()
     try:
-        args = parser.parse_args(argv)
+        args = parser.parse_args(actual_argv)
         if len(args.sources or []) > 1:
             raise ValueError("--from may be specified only once")
         if len(args.targets or []) > 1:

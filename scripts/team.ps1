@@ -46,9 +46,22 @@ Commands:
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
   rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]
                                               Confirm and execute a frozen deployment manifest
+  compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown]
+              [--emit-dba-script <file>]
+                                              Compare complete environment catalogs by name, read-only
   compare-schema [--from <env>] (--to <env>|--env <env>)
                 (--object <name>|--pattern <glob>) [...] [--format text|json]
                                               Compare selected live schema objects read-only
+  baseline export-source --from <env> [--scratch <dir>]
+                                              Export configured exact stored source and settings
+  baseline export-grants --from <env> [--scratch <dir>]
+                                              Export configured object and system grants
+  baseline export-data --from <env> [--scratch <dir>]
+                                              Export allow-listed reference rows without excluded columns
+  baseline build --to <env> [--from <env>] [--data] [--bundle <name>]
+                                              Build granular or bundled baseline migrations and optional reference data
+  baseline filter-ords --exclude-module NAME [...] --input <file> --output <file>
+                                              Remove complete named modules from an ORDS export
   backup-db                                   Refresh the table and code mirrors (and ORDS, when configured)
   backup-ords                                 Export ORDS metadata read-only to database/<SCHEMA>/ords/schema.sql
   deploy <app_id> --env <staging|prod> [--manual]
@@ -60,6 +73,7 @@ Options:
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
+  <ENV>_DBA_SQLCL_CONNECTION                   Read-only compare-env and baseline grant-export connection
 "@ | Write-Output
 }
 
@@ -373,6 +387,45 @@ try {
     "compare-schema" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 compare-schema [--from <env>] (--to <env>|--env <env>) (--object <name>|--pattern <glob>) [...]" }
       Invoke-TeamBash -ScriptName "compare_schema.sh" -ScriptArguments $Arguments
+    }
+    "compare-env" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown] [--emit-dba-script <file>]" }
+      $compareArguments = @($Arguments)
+      for ($compareIndex = 0; $compareIndex -lt $compareArguments.Count; $compareIndex++) {
+        if ($compareArguments[$compareIndex] -ceq "--emit-dba-script" -and $compareIndex + 1 -lt $compareArguments.Count) {
+          $compareIndex++
+          $compareArguments[$compareIndex] = ConvertTo-MigrationFolderArgument ([string] $compareArguments[$compareIndex])
+        } elseif (([string] $compareArguments[$compareIndex]).StartsWith("--emit-dba-script=", [System.StringComparison]::Ordinal)) {
+          $scriptValue = ([string] $compareArguments[$compareIndex]).Substring("--emit-dba-script=".Length)
+          $compareArguments[$compareIndex] = "--emit-dba-script=" + (ConvertTo-MigrationFolderArgument $scriptValue)
+        }
+      }
+      if ($compareArguments -contains "--help" -or $compareArguments -contains "-h") {
+        Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("compare-env") + $compareArguments)
+        Exit-Team 0
+      }
+      Invoke-TeamBash -ScriptName "compare_schema.sh" -ScriptArguments (@("compare-env") + $compareArguments)
+    }
+    "baseline" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 baseline <export-source|export-grants|export-data|build|filter-ords> [options]" }
+      $baselineArguments = @($Arguments)
+      for ($baselineIndex = 0; $baselineIndex -lt $baselineArguments.Count; $baselineIndex++) {
+        $pathOptions = @("--scratch", "--data-dir", "--input", "--output")
+        if ($pathOptions -ccontains ([string] $baselineArguments[$baselineIndex]) -and $baselineIndex + 1 -lt $baselineArguments.Count) {
+          $baselineIndex++
+          $baselineArguments[$baselineIndex] = ConvertTo-MigrationFolderArgument ([string] $baselineArguments[$baselineIndex])
+        } else {
+          foreach ($pathOption in $pathOptions) {
+            $prefix = $pathOption + "="
+            if (([string] $baselineArguments[$baselineIndex]).StartsWith($prefix, [System.StringComparison]::Ordinal)) {
+              $pathValue = ([string] $baselineArguments[$baselineIndex]).Substring($prefix.Length)
+              $baselineArguments[$baselineIndex] = $prefix + (ConvertTo-MigrationFolderArgument $pathValue)
+              break
+            }
+          }
+        }
+      }
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("baseline") + $baselineArguments)
     }
     "backup-db" {
       if ($Arguments.Count -ne 0) { Fail "backup-db does not accept arguments" }

@@ -492,3 +492,33 @@ are local recovery evidence under `scratch/rollout-receipts/`; resuming with
 `--from-step N` requires matching receipts for every earlier step. Inspect
 target state before resuming after an ambiguous write. Reports may not overlap
 rollout inputs, receipts or recovery evidence.
+
+## Generated baseline migrations
+
+`scripts/team.sh baseline build --to <env> [--from <env>] [--data]`
+generates ordinary reviewable migration folders from complete live catalog
+captures. By default, structure, grants and code remain separate. Add
+`--bundle <name>` to combine nonempty structure, grants and code into the
+`baseline-bundle-<name>` family in that order. The name is an ASCII lowercase
+slug of up to 64 characters. A typical three-folder result becomes one folder
+per schema; `--data` keeps reference data DML in a separate family, so a
+typical four-folder result becomes two. Empty components do not create empty
+folders, and data-only output remains data-only. This adds no repository-wide
+migration-folder count limit; existing per-family revision rules still apply.
+
+The generated bundle README records the source step names and SQL hashes.
+Checks remain schema 1 and are carried into the ordinary migration verifier.
+Each folder is staged under private ignored `scratch/`, validated before
+installation and moved into `migrations/` with an exclusive rename. This
+protects an occupied destination and avoids exposing a partially written final
+folder. If generation for a later schema fails, earlier validated folders stay
+installed and their paths are reported. The build inspects only this checkout's
+receipts, attempt events and migration files; it cannot see pending work in an
+independent repository.
+
+Baseline generation never applies SQL. Review generated DDL and checks before
+using the regular migration workflow. Oracle DDL can commit implicitly, so a
+failed later step or check may leave earlier changes on the target; inspect
+the live schema and use a reviewed follow-up migration rather than editing or
+replaying an attempted folder. Reference-data DML keeps its own natural-key,
+foreign-key and recovery checks and is ordered after the verified DDL bundle.

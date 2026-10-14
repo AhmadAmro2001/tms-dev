@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import base64
 import gzip
+import io
 import json
 import os
 import tempfile
 import unittest
 import zlib
+from contextlib import redirect_stderr, redirect_stdout
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
 import _no_real_sqlcl  # noqa: F401
 from tests import fake_sqlcl
+from scripts import compare_schema, migration_runtime
 from scripts.db_targets import Target
 from scripts.compare_schema import (
     COMPARE_ENV_SECTIONS,
@@ -935,6 +938,111 @@ class EnvironmentComparisonTests(unittest.TestCase):
         self.assertNotIn("ORDS.ENABLE_SCHEMA", refused_script)
         self.assertIn("Manual review required: incomplete ORDS URL mapping", refused_script)
 
+class EnvironmentComparisonCliTests(unittest.TestCase):
+    values = {
+        "DB_ENVIRONMENT": "development",
+        "CODE_SQLCL_CONNECTION": "DEV",
+        "CODE_EXPECTED_USER": "APP_DEV",
+        "CODE_SCHEMA": "APP_DEV",
+        "STAGING_SQLCL_CONNECTION": "STAGE",
+        "STAGING_EXPECTED_USER": "APP_STAGE",
+        "STAGING_SCHEMA": "APP_STAGE",
+    }
+
+    def test_compare_env_cli_checks_sqlcl_before_catalog_capture(self) -> None:
+        order: list[str] = []
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        def check_version() -> None:
+            order.append("version")
+
+        def capture(target, environment, sections, run_dir, **kwargs):
+            order.append(f"capture:{environment}")
+            return catalog(environment)
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(migration_runtime, "require_migration_sqlcl_version", side_effect=check_version),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            result = compare_schema.main(
+                ["compare-env", "--from", "dev", "--to", "staging", "--section", "tables", "--format", "json"],
+                environ=self.values,
+                run_dir=Path(temporary),
+                capture_environment_fn=capture,
+            )
+
+        self.assertIn(result, (0, 1), stdout.getvalue() + stderr.getvalue())
+        self.assertEqual("version", order[0])
+        self.assertEqual(["capture:dev", "capture:staging"], order[1:])
+        self.assertEqual("", stderr.getvalue())
+        self.assertIn('"readiness"', stdout.getvalue())
+
+    def test_compare_env_cli_parser_help_is_offline(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(migration_runtime, "require_migration_sqlcl_version") as check_version,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            result = compare_schema.main(["compare-env", "--help"])
+
+        self.assertEqual(0, result, stderr.getvalue())
+        self.assertIn("Compare environment catalog", stdout.getvalue())
+        self.assertIn("--section", stdout.getvalue())
+        check_version.assert_not_called()
+
+    def test_compare_env_cli_runtime_failure_stops_before_capture(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                migration_runtime,
+                "require_migration_sqlcl_version",
+                side_effect=migration_runtime.MigrationRuntimeError("SQLcl floor required"),
+            ),
+            patch.object(compare_schema, "capture_environment_catalog") as capture,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            result = compare_schema.main(
+                ["compare-env", "--from", "dev", "--to", "staging", "--section", "tables"],
+                environ=self.values,
+                run_dir=Path("unused"),
+            )
+
+        self.assertEqual(2, result)
+        self.assertIn("SQLcl floor required", stderr.getvalue())
+        capture.assert_not_called()
+
+    def test_compare_env_cli_capture_failure_becomes_a_blocker(self) -> None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        def fail_capture(*_args, **_kwargs):
+            raise CatalogError("fake catalog capture failure")
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(migration_runtime, "require_migration_sqlcl_version"),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            result = compare_schema.main(
+                ["compare-env", "--from", "dev", "--to", "staging", "--section", "tables", "--format", "json"],
+                environ=self.values,
+                run_dir=Path(temporary),
+                capture_environment_fn=fail_capture,
+            )
+
+        report = json.loads(stdout.getvalue())
+        self.assertEqual(2, result)
+        self.assertEqual(2, report["exit_code"])
+        self.assertTrue(any("fake catalog capture failure" in item["message"] for item in report["blockers"]))
+        self.assertEqual("", stderr.getvalue())
 
 
 if __name__ == "__main__":

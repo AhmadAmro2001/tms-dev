@@ -89,7 +89,7 @@ def read_json(path: Path) -> dict:
 
 def validate_descriptor(data: dict, app_id: int) -> None:
     _check(data, _FIELDS)
-    workspace = _get(data, "workspace.name")
+    _get(data, "workspace.name")
     selected_id = _get(data, "app.id")
     _get(data, "app.databaseSession.parsingSchema")
     if selected_id != app_id:

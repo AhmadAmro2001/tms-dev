@@ -18,6 +18,7 @@ separate file changes only and do not isolate a shared APEX application.
 | understand an error message | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | look up a command | [Command reference](#command-reference) |
 | inspect migration folders before selecting an order | [Migration planning](docs/migration-planning.md) |
+| compare full environment catalogs or generate a baseline | [Environment comparison](docs/compare-env.md), [Baseline generation](docs/baseline.md) |
 | see the 26.1 backport qualification | [APEX 26.1 qualification](docs/apex-26.1-qualification.md) |
 | know exactly when publish or migrate refuses | [publish-rules](docs/publish-rules.md), [migration-rules](docs/migration-rules.md) |
 | know which limits are deliberate | [Known limitations](docs/known-limitations.md) |
@@ -37,6 +38,7 @@ project-specific tests and the operational scripts, `.env`, manifest and lock.
 | Two ways to work | **Builder-first** (change it in APEX, export it) or **file-first** (edit the files, publish them). |
 | Safe publish | Refuses to overwrite newer Builder work, stamps who published and when, then re-exports the app and checks it byte for byte against your files. |
 | SQL migrations | Dated folders of numbered SQL plus `checks.json`; a live check for conflicts before applying; a verified receipt after. |
+| Environment baselines | Read-only capture and granular or optionally bundled structure, grant and exact-source migration generation, with separate optional reference data. |
 | Schema comparison | Read-only comparison of selected tables, views and code between DEV, staging and production. |
 | Several schemas per workspace | Comma-separated lists in `.env` and `--schema`; apps, database copies and migrations are kept per schema. |
 | Staging and production | Per-app descriptors, an explicit `[y/N]` confirmation, and `--manual` to print a runbook for a DBA. |
@@ -96,6 +98,8 @@ Git, Python 3.10 or newer, Bash 4.3 or newer, and an Oracle database with
 APEX 26.1 or newer. To practice locally, the
 [United Codes `uc-local-apex-dev`](https://github.com/United-Codes/uc-local-apex-dev)
 containers give you one.
+Live `compare-env` and `baseline` commands require SQLcl 26.3.0.0 or newer;
+offline help and ORDS filtering do not start SQLcl.
 
 Copy the example configuration, set `DEVELOPER_NAME` to your uppercase name
 (for example `ASHARIF`), adjust SQLcl saved connection names and expected
@@ -460,6 +464,49 @@ with follow-up review but cannot reliably prove which migration file caused a
 shape: separate migrations may produce the same DDL, and a manual change can
 mimic a migration.
 
+Use `compare-env` for complete, paged readiness comparisons by object name:
+
+```bash
+scripts/team.sh compare-env --from dev --to staging
+scripts/team.sh compare-env --from dev --to staging \
+  --section tables --section columns --section constraints --section triggers
+scripts/team.sh compare-env --from dev --to staging --format markdown
+```
+
+The report identifies incomplete or unavailable catalog sections and reports
+the limits of each comparison. It is read-only and requires SQLcl 26.3.0.0 or
+newer.
+
+### Generate an environment baseline
+
+Copy [the example](docs/baseline.example.json) to the project root as
+`baseline.json`, then set the project schemas, object filters, grant policy,
+sequence mappings and reference-data allow-list. Export the configured source
+and generate new granular migration folders for review:
+
+```bash
+scripts/team.sh baseline export-source --from dev
+scripts/team.sh baseline export-grants --from dev
+scripts/team.sh baseline export-data --from dev
+scripts/team.sh baseline build --from dev --to staging
+scripts/team.sh baseline build --from dev --to staging --data
+scripts/team.sh baseline build --from dev --to staging --bundle customer-status
+scripts/team.sh baseline build --from dev --to staging --bundle customer-status --data
+scripts/team.sh baseline filter-ords --exclude-module legacy.api \
+  --input scratch/ords/schema.sql --output scratch/ords/schema-filtered.sql
+```
+
+The builder can create separate `baseline-structure`, `baseline-grants`, and
+`baseline-code` folders, plus a separate `baseline-data` folder when `--data`
+is selected. Add `--bundle <name>` to combine nonempty structure, grants and
+code output into one `baseline-bundle-<name>` folder per target schema; a
+three-folder output becomes one, and reference data remains separate. This
+adds no repository-wide migration-folder count limit. Excluded sensitive columns never enter reference-data
+exports. Generated folders are reviewed and applied through the ordinary migration
+workflow; baseline commands do not apply SQL. See
+[baseline generation](docs/baseline.md) for its capture, data and recovery
+limits. Live baseline commands require SQLcl 26.3.0.0 or newer.
+
 ## Staging and production deployments
 
 For direct promotion, configure the target connection/user pair in `.env` and
@@ -571,6 +618,12 @@ restore those backups before retrying the upgrade.
 | `scripts/team.sh verify <folder> [...] --env <env> [--phase pre\|post\|both] [--only-failed] [--format text\|json] [--jobs N]` | Evaluate migration checks read-only; false checks return 1 and errors return 2. |
 | `scripts/team.sh rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]` | Run a frozen ordered deployment plan; staging and production use one manifest-wide confirmation. |
 | `scripts/team.sh compare-schema --env <env> --object <name>` | Compare selected live schema objects read-only. |
+| `scripts/team.sh compare-env --from <env> --to <env> [--section <name>] [--format text\|json\|markdown]` | Compare complete, paged environment catalogs by object name. |
+| `scripts/team.sh baseline export-source --from <env>` | Export exact stored source, compiler settings and view text to scratch. |
+| `scripts/team.sh baseline export-grants --from <env>` | Export configured object grants and direct system privileges. |
+| `scripts/team.sh baseline export-data --from <env>` | Export allow-listed reference rows while excluding configured sensitive columns. |
+| `scripts/team.sh baseline build --to <env> [--from <env>] [--data] [--bundle <name>]` | Generate granular or optionally bundled structure, grant and exact-source folders, plus separate optional reference-data folders. |
+| `scripts/team.sh baseline filter-ords --exclude-module NAME [...] --input <file> --output <file>` | Remove complete named modules from an ORDS export. |
 | `scripts/team.sh backup-db` | Refresh local table and code metadata mirrors (and ORDS, when configured). |
 | `scripts/team.sh backup-ords` | Export ORDS (REST) metadata read-only to `database/<SCHEMA>/ords/schema.sql`. |
 | `scripts/team.sh deploy <id> --env <staging\|prod> [--manual]` | Confirm a promotion or print a DBA runbook. |
@@ -589,9 +642,9 @@ Exit status, the same in Bash and PowerShell:
 
 | Status | Meaning |
 | --- | --- |
-| 0 | Done; for `check-conflicts` and `compare-schema`, nothing found; for `migration-plan`, inventory is complete or live preflight has no conflict/error and no selected lock; for `revise --check`, the folder is unlocked. |
-| 1 | `check-conflicts` found conflicts, `compare-schema` found differences, `migration-plan` found a live conflict or selected immutable folder, `verify` found false checks, `revise --check` found a lock, a `[y/N]` prompt was declined, `upgrade-template` left `.template-new` files to merge, or `.env` is invalid (`project environment error: ...`). |
-| 2 | Refused or failed; the message says why and what changed. `migration-plan` uses 2 for invalid selection or incomplete evidence. Also `migrate` interrupted while a SQL step runs ("may be partially applied"). |
+| 0 | Done; for `check-conflicts`, `compare-schema`, and `compare-env`, nothing found; for `migration-plan`, inventory is complete or live preflight has no conflict/error and no selected lock; for `revise --check`, the folder is unlocked. |
+| 1 | `check-conflicts` found conflicts, `compare-schema` or complete `compare-env` found differences, `migration-plan` found a live conflict or selected immutable folder, `verify` found false checks, `revise --check` found a lock, a `[y/N]` prompt was declined, `upgrade-template` left `.template-new` files to merge, or `.env` is invalid (`project environment error: ...`). |
+| 2 | Refused or failed; the message says why and what changed. `migration-plan` uses 2 for invalid selection or incomplete evidence; `compare-env` uses 2 for incomplete capture. Also `migrate` interrupted while a SQL step runs ("may be partially applied"). |
 | 130 / 143 | Stopped by Ctrl-C / by SIGTERM (`kill`). |
 
 SIGTERM is for Bash: `team.sh` hands its process to the command it runs, so a
