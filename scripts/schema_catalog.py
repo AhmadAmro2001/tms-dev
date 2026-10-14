@@ -40,8 +40,8 @@ CAPTURE_CATALOGS = {
     "ALL_TAB_IDENTITY_COLS", "ALL_SEQUENCES", "ALL_CONSTRAINTS", "ALL_CONS_COLUMNS", "ALL_INDEXES",
     "ALL_IND_COLUMNS", "ALL_TRIGGERS", "SYNONYMS", "OBJECT_GRANTS",
 }
-FRAME_RE = re.compile(r"^CATALOG_PAYLOAD_(BEGIN|END):(inventory|snapshot)$")
-VERIFIED_RE = re.compile(r"^CATALOG_VERIFIED:(inventory|snapshot)$")
+FRAME_RE = re.compile(r"^CATALOG_PAYLOAD_(BEGIN|END):(inventory|snapshot|compare-env)$")
+VERIFIED_RE = re.compile(r"^CATALOG_VERIFIED:(inventory|snapshot|compare-env)$")
 HEX_SCHEMA_RE = re.compile(r"[A-Z][A-Z0-9_$#]{0,127}\Z", re.ASCII)
 
 
@@ -69,6 +69,8 @@ class SynonymDefinition:
     table_owner: str
     table_name: str
     db_link: str = ""
+    target_exists: bool | None = None
+    target_type: str | None = None
 
 
 @dataclass(frozen=True, order=True)
@@ -166,6 +168,8 @@ def _synonym_rows(rows: object, owner: str) -> tuple[SynonymDefinition, ...]:
         synonym_owner, name = row.get("owner"), row.get("name")
         table_owner, table_name = row.get("table_owner"), row.get("table_name")
         db_link = row.get("db_link", "")
+        target_exists = row.get("target_exists")
+        target_type = row.get("target_type")
         if db_link is None:
             db_link = ""
         if not all(isinstance(value, str) and value for value in (synonym_owner, name, table_owner, table_name)):
@@ -174,10 +178,19 @@ def _synonym_rows(rows: object, owner: str) -> tuple[SynonymDefinition, ...]:
             raise CatalogError("catalog synonym escaped the selected owner and PUBLIC scope")
         if not isinstance(db_link, str):
             raise CatalogError("catalog synonym database link is malformed")
+        if target_exists is not None and not isinstance(target_exists, bool):
+            raise CatalogError("catalog synonym target-existence evidence is malformed")
+        if target_type is not None and not isinstance(target_type, str):
+            raise CatalogError("catalog synonym target-type evidence is malformed")
+        if target_exists is False and target_type is not None:
+            raise CatalogError("catalog synonym target-type evidence conflicts with an absent target")
         key = (synonym_owner, name)
         if key in synonyms:
             raise CatalogError(f"catalog repeats synonym {synonym_owner}.{name}")
-        synonyms[key] = SynonymDefinition(synonym_owner, name, table_owner, table_name, db_link)
+        synonyms[key] = SynonymDefinition(
+            synonym_owner, name, table_owner, table_name, db_link,
+            target_exists, target_type.upper() if target_type is not None else None,
+        )
     return tuple(sorted(synonyms.values()))
 
 
@@ -247,7 +260,11 @@ def _strict_json_object_pairs_hook(pairs: list[tuple[str, Any]]) -> dict[str, An
     return obj
 
 
-def decode_catalog_payload(lines: Sequence[str]) -> dict:
+def decode_catalog_payload(
+    lines: Sequence[str],
+    *,
+    parse_float: Callable[[str], Any] | None = None,
+) -> dict:
     """Decode a sequence of framed payload lines into a catalog dictionary.
 
     Lines may represent either:
@@ -353,6 +370,7 @@ def decode_catalog_payload(lines: Sequence[str]) -> dict:
             decoded_text,
             object_pairs_hook=_strict_json_object_pairs_hook,
             parse_constant=_reject_json_constant,
+            parse_float=parse_float,
         )
     except CatalogError:
         raise
@@ -367,7 +385,7 @@ def decode_catalog_payload(lines: Sequence[str]) -> dict:
         raise CatalogError("catalog payload schema version is unsupported")
 
     phase = payload.get("phase")
-    if type(phase) is not str or phase not in {"inventory", "snapshot"}:
+    if type(phase) is not str or phase not in {"inventory", "snapshot", "compare-env"}:
         raise CatalogError("catalog payload phase is unsupported")
 
     for field_name in ("objects", "before", "after"):
@@ -396,7 +414,12 @@ def decode_catalog_payload(lines: Sequence[str]) -> dict:
     return payload
 
 
-def _payload_frames(output: str, phase: str) -> list[dict]:
+def _payload_frames(
+    output: str,
+    phase: str,
+    *,
+    parse_float: Callable[[str], Any] | None = None,
+) -> list[dict]:
     frames: list[dict] = []
     collecting = False
     pieces: list[str] = []
@@ -422,7 +445,7 @@ def _payload_frames(output: str, phase: str) -> list[dict]:
             # Interior whitespace/chunks remain strict; gzip EOF/CRC is still checked.
             while pieces and pieces[-1] == "":
                 pieces.pop()
-            payload = decode_catalog_payload(pieces)
+            payload = decode_catalog_payload(pieces, parse_float=parse_float)
             if payload.get("phase") != phase:
                 raise CatalogError("catalog payload schema version or phase is unsupported")
             frames.append(payload)
@@ -446,6 +469,18 @@ def _payload_frames(output: str, phase: str) -> list[dict]:
         if type(version) is not int or version != SCHEMA_VERSION or payload.get("phase") != phase:
             raise CatalogError("catalog payload schema version or phase is unsupported")
     return frames
+
+
+def parse_framed_catalog_payloads(
+    output: str,
+    phase: str,
+    *,
+    parse_float: Callable[[str], Any] | None = None,
+) -> list[dict]:
+    """Decode verified, compressed SQLcl payload frames for a catalog phase."""
+    if phase not in {"inventory", "snapshot", "compare-env"}:
+        raise CatalogError("catalog payload phase is unsupported")
+    return _payload_frames(output, phase, parse_float=parse_float)
 
 
 def parse_inventory(output: str, target: Target) -> SchemaInventory:
