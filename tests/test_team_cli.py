@@ -787,13 +787,18 @@ class TeamCliTests(unittest.TestCase):
                 while not started.exists() and time.monotonic() < deadline:
                     time.sleep(0.05)
                 self.assertTrue(started.exists(), "the helper never started")
+                # The marker is written just before the helper blocks. Let PowerShell's
+                # native-process wait settle before broadcasting SIGINT to the whole group;
+                # an interrupt during process startup can abort pwsh instead of exercising
+                # team.ps1's finally block.
+                time.sleep(0.1)
                 os.killpg(process.pid, signal.SIGINT)
-                process.communicate(timeout=60)
+                stdout, stderr = process.communicate(timeout=60)
             finally:
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.communicate()
-            self.assertEqual(process.returncode, 130)
+            self.assertEqual(process.returncode, 130, f"stdout: {stdout}\nstderr: {stderr}")
 
     @unittest.skipIf(os.name == "nt", "pwsh on Linux and macOS ends the tree with Kill(true); Windows twin: SqlclProcessTreeTests in test_windows_support.py")
     def test_powershell_ends_the_whole_sqlcl_tree_when_sqlcl_ignores_ctrl_c(self) -> None:
@@ -878,13 +883,16 @@ class TeamCliTests(unittest.TestCase):
                 while not started.exists() and time.monotonic() < deadline:
                     time.sleep(0.05)
                 self.assertTrue(started.exists(), "the helper never started")
+                # See test_powershell_exits_130_when_interrupted_while_a_helper_runs:
+                # avoid interrupting PowerShell while its native-process wait is starting.
+                time.sleep(0.1)
                 os.killpg(process.pid, signal.SIGINT)
-                process.communicate(timeout=60)
+                stdout, stderr = process.communicate(timeout=60)
             finally:
                 if process.poll() is None:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.communicate()
-            self.assertEqual(process.returncode, 2)
+            self.assertEqual(process.returncode, 2, f"stdout: {stdout}\nstderr: {stderr}")
 
     def test_the_two_usage_screens_match_apart_from_the_script_name(self) -> None:
         # The PowerShell screen once left out `--help`, an option it accepts.
@@ -972,8 +980,15 @@ class TeamCliTests(unittest.TestCase):
         pwsh = shutil.which("pwsh")
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
-        environment = os.environ.copy()
-        environment.pop("TEAM_BASH", None)
+        hidden_names = {"team_bash", "path", "project_env_file"}
+        if os.name == "nt":
+            hidden_names.update({"programfiles", "programfiles(x86)", "programw6432", "localappdata"})
+        # A copied environment is a normal case-sensitive dict even on Windows, while
+        # Windows treats names such as ProgramFiles and PROGRAMFILES as the same variable.
+        # Remove every spelling before installing this test's isolated values.
+        environment = {
+            name: value for name, value in os.environ.items() if name.casefold() not in hidden_names
+        }
         environment["PATH"] = str(Path(pwsh).parent)  # pwsh itself, but no bash
         if shutil.which("bash", path=environment["PATH"]):
             self.skipTest("bash lives next to pwsh on this machine")
@@ -985,7 +1000,7 @@ class TeamCliTests(unittest.TestCase):
             if os.name == "nt":
                 # team.ps1 also looks for Git for Windows under Program Files and LOCALAPPDATA\Programs.
                 for name in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "LOCALAPPDATA"):
-                    environment[name] = str(empty)
+                    environment[name.upper()] = str(empty)
             result = subprocess.run(
                 [pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1"), "migrate", "migrations/x", "--env", "dev"],
                 cwd=ROOT, env=environment, text=True, capture_output=True, check=False,
@@ -1127,13 +1142,16 @@ class TeamCliTests(unittest.TestCase):
                     while not started.exists() and time.monotonic() < deadline:
                         time.sleep(0.05)
                     self.assertTrue(started.exists(), "SQLcl never started")
+                    # A child can start just before the wrapper finishes entering its wait.
+                    # Signal after that transition so this covers Ctrl-C handling, not startup.
+                    time.sleep(0.1)
                     os.killpg(process.pid, signal.SIGINT)
-                    _, stderr = process.communicate(timeout=60)
+                    stdout, stderr = process.communicate(timeout=60)
                 finally:
                     if process.poll() is None:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.communicate()
-                self.assertEqual(process.returncode, 130, stderr)
+                self.assertEqual(process.returncode, 130, stdout + stderr)
                 self.assertEqual(stderr.strip(), "preflight interrupted; it only reads, so nothing was changed")
                 self.assertEqual(sorted(path.name for path in (root / "scratch").glob("*")), [])
 
