@@ -270,6 +270,81 @@ class UpgradeTemplateTests(unittest.TestCase):
         self.assertIn("UNCHANGED AGENTS.md", result.stdout)
         self.assertFalse((self.project / ".template-lock.json").exists())
 
+    def test_historical_team_lock_recovers_with_explicit_26_1_source(self) -> None:
+        self.adopt()
+        team_url = "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git"
+        release_url = "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git"
+        lock = self.lock()
+        lock["upstream"] = team_url
+        write(self.project, {".template-lock.json": json.dumps(lock)})
+        commit_all(self.project, "historical TEAM source")
+        self.release_v2({"scripts/tool.sh": "echo repaired-26.1\n"})
+
+        historical = self.template.parent / "historical-team"
+        init_repo(historical)
+        write(historical, {"template-manifest.json": json.dumps({**MANIFEST, "schemaVersion": 2, "upstream": team_url})})
+        commit_all(historical, "incompatible TEAM release")
+        before = {name: (self.project / name).read_bytes() for name in git(self.project, "ls-files").splitlines()}
+        # Exercise the real CLI/clone/apply path, routing public URLs to local
+        # fixture repositories. Any unrewritten network protocol is forbidden.
+        with patch.dict(os.environ, {
+            "GIT_CONFIG_COUNT": "2", "GIT_ALLOW_PROTOCOL": "file",
+            "GIT_CONFIG_KEY_0": f"url.{self.template.as_uri()}.insteadOf", "GIT_CONFIG_VALUE_0": release_url,
+            "GIT_CONFIG_KEY_1": f"url.{historical.as_uri()}.insteadOf", "GIT_CONFIG_VALUE_1": team_url,
+        }):
+            refused = self.upgrade_without_source("--dry-run")
+            self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+            self.assertIn("unsupported template manifest schemaVersion", refused.stderr)
+
+            dry_run = self.upgrade_without_source("--source", release_url, "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stdout + dry_run.stderr)
+            self.assertEqual({name: (self.project / name).read_bytes() for name in before}, before)
+            self.assertEqual(git(self.project, "status", "--porcelain"), "")
+            self.assertEqual(self.lock()["upstream"], team_url)
+
+            result = self.upgrade_without_source("--source", release_url)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.read("scripts/tool.sh"), "echo repaired-26.1\n")
+        self.assertEqual(self.lock()["upstream"], release_url)
+        self.assertEqual(self.lock()["commit"], git(self.template, "rev-parse", "HEAD"))
+        self.assertEqual(self.read("AGENTS.project.md"), "our project rules\n")
+        self.assertEqual(self.read("apps/DEMO/100/application.apx"), "app X ()\n")
+
+    def test_recorded_custom_fork_wins_over_manifest_without_override(self) -> None:
+        self.adopt()
+        fork = self.template.parent / "chosen-fork"
+        shutil.copytree(self.template, fork)
+        write(fork, {"scripts/tool.sh": "echo chosen-fork\n"})
+        commit_all(fork, "fork-specific change")
+        lock = self.lock()
+        lock["upstream"] = str(fork)
+        write(self.project, {".template-lock.json": json.dumps(lock)})
+        commit_all(self.project, "record custom fork")
+        self.release_v2({"scripts/tool.sh": "echo official-release\n"})
+
+        result = self.upgrade_without_source()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.read("scripts/tool.sh"), "echo chosen-fork\n")
+        self.assertEqual(self.lock()["upstream"], str(fork.resolve()))
+        self.assertEqual(self.lock()["commit"], git(fork, "rev-parse", "HEAD"))
+
+    def test_explicit_source_recovery_preserves_local_conflicts(self) -> None:
+        self.adopt()
+        lock = self.lock()
+        lock["upstream"] = "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git"
+        write(self.project, {".template-lock.json": json.dumps(lock), "scripts/tool.sh": "echo project-specific\n"})
+        commit_all(self.project, "historical lock and local customization")
+        self.release_v2({"scripts/tool.sh": "echo release-fix\n"})
+
+        result = self.upgrade()
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.read("scripts/tool.sh"), "echo project-specific\n")
+        self.assertEqual(self.read("scripts/tool.sh.template-new"), "echo release-fix\n")
+        self.assertEqual(self.lock()["upstream"], str(self.template.resolve()))
+
     def test_unmodified_template_files_are_updated_and_new_files_created(self) -> None:
         self.adopt()
         self.release_v2({"scripts/tool.sh": "echo v2\n", "scripts/new.sh": "echo new\n"})

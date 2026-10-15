@@ -12,6 +12,13 @@
 
 ## Global Constraints
 
+Status note (2026-10-15): the original F1–F9 implementation is commit `1985fed`.
+Its implementation review found follow-up items R1–R5, tracked separately in
+[the follow-up plan](2026-10-15-review-followup.md). The detailed checkboxes below
+are the original execution checklist, not a verified completion record. Current
+closure, test evidence and the still-unexecuted live qualification are recorded
+in [the follow-up result](../reviews/2026-10-15-review-followup.md).
+
 - APEX 26.1 compatibility; do not introduce APEX 26.2 APIs or the 26.2 descriptor contract.
 - Python >=3.10; operational code remains stdlib-only, with Graphify optional.
 - Preserve Bash and Windows PowerShell 5.1/PowerShell 7 behavior.

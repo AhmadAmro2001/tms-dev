@@ -573,6 +573,36 @@ still be created; review tests and GitHub automation after future upgrades.
 If the upgrade is interrupted (Ctrl-C or `kill`), it puts back every file it had
 replaced and says `the project was left as it was`; run it again.
 
+### Recover an older template lock
+
+An existing 26.1 project may have inherited
+`https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git` in its
+`.template-lock.json` upstream. That repository now uses the 26.2 manifest
+contract, so the 26.1 upgrade can refuse it with `unsupported template manifest
+schemaVersion`. Correcting the local manifest alone does not change the source:
+precedence is explicit `--source`, then the lock's upstream, then the manifest.
+
+For this historical 26.1 lock, start from a clean working tree and explicitly
+select the 26.1 release repository. Review the dry-run before applying:
+
+```bash
+git status --short
+scripts/team.sh upgrade-template --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git --dry-run
+scripts/team.sh upgrade-template --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git
+git diff
+```
+
+The dry-run leaves files and the lock unchanged. Apply records the explicitly
+selected source in the new lock and keeps the ordinary conflict rules: local
+customizations stay in place, conflicts produce `.template-new` review copies
+and exit 1. Merge each conflict, remove its review copy, and review and commit
+the upgraded files together with `.template-lock.json`. Keep the existing lock
+for its file hashes and intentional-deletion history. Use the same `--ref` on
+both commands when selecting a particular reviewed template version.
+
+A deliberately selected fork remains the source recorded in its lock. Use this
+override only when choosing to move that project back to the 26.1 release line.
+
 A project upgraded to a template version with multi-schema support needs no
 `.env` change: one value per key is still the single-schema setup. Its next
 `scripts/team.sh backup-db` also mirrors each schema's private synonyms under

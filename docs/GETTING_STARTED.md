@@ -166,6 +166,27 @@ An upgrade keeps previously installed files deleted (`KEEP-DELETED`), but may
 introduce new template test/workflow files. Review those after every upgrade.
 Do not delete your project's own regression tests as part of repeated cleanup.
 
+### Recover an existing 26.1 upgrade lock
+
+If your 26.1 project's `.template-lock.json` still records
+`https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git`, the upgrade may
+refuse that repository's newer manifest contract. The lock's upstream takes
+precedence over the local manifest; an explicit `--source` takes precedence over
+both. With a clean working tree, review a dry-run and then apply the same source:
+
+```bash
+scripts/team.sh upgrade-template --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git --dry-run
+scripts/team.sh upgrade-template --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git
+```
+
+Dry-run changes no files. Apply records the chosen source in the lock, preserves
+local changes and emits `.template-new` files for conflicts. Resolve those
+conflicts and review and commit the upgrade and lock together. Retain the old
+lock until the upgrade writes its replacement. Deliberate custom forks keep
+their recorded source unless explicitly overridden. See
+[lock recovery](../README.md#recover-an-older-template-lock) for conflict and
+version-selection details.
+
 ## 5. Save your SQLcl connection
 
 SQLcl keeps the password in its own secure store. Save one connection for your

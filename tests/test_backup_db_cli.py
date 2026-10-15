@@ -160,6 +160,7 @@ class BackupDbCliTests(unittest.TestCase):
             ("unknown_type", "FUNCTION=0\nPACKAGE=0\nPACKAGE BODY=0\nPROCEDURE=0\nSYNONYM=0\nTRIGGER=0\nVIEW=1\nUNKNOWN=0\n"),
             ("missing_row", "FUNCTION=0\nPACKAGE=0\nPACKAGE BODY=0\nPROCEDURE=0\nSYNONYM=0\nVIEW=1\n"),
             ("count_mismatch", "FUNCTION=0\nPACKAGE=0\nPACKAGE BODY=0\nPROCEDURE=0\nSYNONYM=0\nTRIGGER=0\nVIEW=2\n"),
+            ("non_ascii_separator", "FUNCTION=0\nPACKAGE=0\nPACKAGE BODY=0\nPROCEDURE=0\nSYNONYM=0\nTRIGGER=0\nVIEW=1\u0085\n"),
         ]
         for name, manifest_code in malformed_cases:
             with self.subTest(case=name):
@@ -176,7 +177,11 @@ class BackupDbCliTests(unittest.TestCase):
                     self.assertFalse((root / "database" / "DEMO$" / "views").exists(), f"New views directory was installed on {name}")
 
     def assert_valid_manifest_installed(self, powershell: bool) -> None:
-        valid_code = "FUNCTION = 0\r\nPACKAGE = 0\r\nPACKAGE BODY = 0\r\nPROCEDURE = 0\r\nSYNONYM = 0\r\nTRIGGER = 0\r\nVIEW = 1\r\n"
+        valid_code = "\v\f\r\n" + "".join(
+            f"\v{kind}\f=\v{count}\f\r\n"
+            for kind, count in (("FUNCTION", 0), ("PACKAGE", 0), ("PACKAGE BODY", 0),
+                                ("PROCEDURE", 0), ("SYNONYM", 0), ("TRIGGER", 0), ("VIEW", 1))
+        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             script = self.make_checkout(root, powershell=powershell)

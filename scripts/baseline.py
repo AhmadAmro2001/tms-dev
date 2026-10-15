@@ -1466,14 +1466,25 @@ def _replace_create_header(ddl: str, object_type: str, source_schema: str, targe
     return ddl
 
 
+def _metadata_integer(value: object, description: str) -> int:
+    """Read an integer catalog attribute without rounding malformed evidence."""
+    if isinstance(value, bool) or not isinstance(value, (int, str, float, Decimal)):
+        raise BaselineError(f"{description} is not an integer: {value!r}")
+    try:
+        parsed = int(value)
+    except (ValueError, TypeError, OverflowError) as error:
+        raise BaselineError(f"{description} is not an integer: {value!r}") from error
+    if isinstance(value, (float, Decimal)) and value != parsed:
+        raise BaselineError(f"{description} is not an integer: {value!r}")
+    return parsed
+
+
 def _table_column_type(row: Mapping) -> str:
     data_type = row.get("data_type")
     col_name = row.get("name", "?")
     if isinstance(data_type, bool) or not isinstance(data_type, str):
         raise BaselineError(f"unsupported column data type in catalog: {data_type!r}")
     value = data_type.upper()
-    if value == "BOOLEAN":
-        raise BaselineError(f"column {col_name} has unsupported data type: BOOLEAN")
     if re.fullmatch(r"[A-Z][A-Z0-9_ ]*(?:\([0-9]+(?:,[0-9]+)?\))?(?: WITH (?:LOCAL )?TIME ZONE)?", value, re.ASCII) is None:
         raise BaselineError(f"unsupported column data type in catalog: {data_type!r}")
 
@@ -1485,19 +1496,13 @@ def _table_column_type(row: Mapping) -> str:
 
         parsed_precision: int | None = None
         if precision_raw is not None:
-            try:
-                parsed_precision = int(precision_raw)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {col_name} has invalid NUMBER precision: {precision_raw!r}") from e
+            parsed_precision = _metadata_integer(precision_raw, f"column {col_name} NUMBER precision")
             if parsed_precision < 1 or parsed_precision > 38:
                 raise BaselineError(f"column {col_name} NUMBER precision {parsed_precision} out of range 1..38")
 
         parsed_scale: int | None = None
         if scale_raw is not None:
-            try:
-                parsed_scale = int(scale_raw)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {col_name} has invalid NUMBER scale: {scale_raw!r}") from e
+            parsed_scale = _metadata_integer(scale_raw, f"column {col_name} NUMBER scale")
             if parsed_scale < -84 or parsed_scale > 127:
                 raise BaselineError(f"column {col_name} NUMBER scale {parsed_scale} out of range -84..127")
 
@@ -1519,10 +1524,7 @@ def _table_column_type(row: Mapping) -> str:
             raise BaselineError(f"column {col_name} FLOAT does not support scale: {scale_raw!r}")
 
         if precision_raw is not None:
-            try:
-                parsed_precision = int(precision_raw)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {col_name} has invalid FLOAT precision: {precision_raw!r}") from e
+            parsed_precision = _metadata_integer(precision_raw, f"column {col_name} FLOAT precision")
             if parsed_precision < 1 or parsed_precision > 126:
                 raise BaselineError(f"column {col_name} FLOAT precision {parsed_precision} out of range 1..126")
             value = f"FLOAT({parsed_precision})"
@@ -1535,10 +1537,7 @@ def _table_column_type(row: Mapping) -> str:
             length_raw = row.get("data_length")
         if length_raw is None or isinstance(length_raw, bool):
             raise BaselineError(f"column {col_name} has no usable length")
-        try:
-            length = int(length_raw)
-        except (ValueError, TypeError) as e:
-            raise BaselineError(f"column {col_name} has non-integer length: {length_raw!r}") from e
+        length = _metadata_integer(length_raw, f"column {col_name} length")
         if length < 1:
             raise BaselineError(f"column {col_name} has no usable length")
         if value in {"VARCHAR2", "CHAR"}:
@@ -1579,10 +1578,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
         if isinstance(precision, bool) or isinstance(scale, bool):
             raise BaselineError(f"column {table_name}.{column_name} has invalid boolean numeric attribute")
         if precision is not None:
-            try:
-                p_val = int(precision)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {table_name}.{column_name} has invalid precision: {precision!r}") from e
+            p_val = _metadata_integer(precision, f"column {table_name}.{column_name} precision")
             if p_val < 1 or p_val > 38:
                 raise BaselineError(f"column {table_name}.{column_name} precision {p_val} out of range 1..38")
             predicates.append(f"DATA_PRECISION = {p_val}")
@@ -1590,10 +1586,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
             predicates.append("DATA_PRECISION IS NULL")
 
         if scale is not None:
-            try:
-                s_val = int(scale)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {table_name}.{column_name} has invalid scale: {scale!r}") from e
+            s_val = _metadata_integer(scale, f"column {table_name}.{column_name} scale")
             if s_val < -84 or s_val > 127:
                 raise BaselineError(f"column {table_name}.{column_name} scale {s_val} out of range -84..127")
             predicates.append(f"DATA_SCALE = {s_val}")
@@ -1609,10 +1602,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
         if scale is not None:
             raise BaselineError(f"column {table_name}.{column_name} FLOAT cannot have scale: {scale!r}")
         if precision is not None:
-            try:
-                p_val = int(precision)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {table_name}.{column_name} has invalid precision: {precision!r}") from e
+            p_val = _metadata_integer(precision, f"column {table_name}.{column_name} precision")
             if p_val < 1 or p_val > 126:
                 raise BaselineError(f"column {table_name}.{column_name} FLOAT precision {p_val} out of range 1..126")
             predicates.append(f"DATA_PRECISION = {p_val}")
@@ -1627,10 +1617,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
             char_length = row.get("char_length")
             if char_length is None or isinstance(char_length, bool):
                 raise BaselineError(f"column {table_name}.{column_name} has no usable char_length for CHAR semantics")
-            try:
-                cl_val = int(char_length)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {table_name}.{column_name} invalid char_length: {char_length!r}") from e
+            cl_val = _metadata_integer(char_length, f"column {table_name}.{column_name} char_length")
             if cl_val < 1:
                 raise BaselineError(f"column {table_name}.{column_name} invalid char_length: {char_length!r}")
             predicates.append("CHAR_USED = 'C'")
@@ -1641,10 +1628,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
                 data_length = row.get("char_length")
             if data_length is None or isinstance(data_length, bool):
                 raise BaselineError(f"column {table_name}.{column_name} has no usable data_length for BYTE semantics")
-            try:
-                dl_val = int(data_length)
-            except (ValueError, TypeError) as e:
-                raise BaselineError(f"column {table_name}.{column_name} invalid data_length: {data_length!r}") from e
+            dl_val = _metadata_integer(data_length, f"column {table_name}.{column_name} data_length")
             if dl_val < 1:
                 raise BaselineError(f"column {table_name}.{column_name} invalid data_length: {data_length!r}")
             predicates.append("(CHAR_USED = 'B' OR CHAR_USED IS NULL)")
@@ -1657,10 +1641,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
             char_length = row.get("data_length")
         if char_length is None or isinstance(char_length, bool):
             raise BaselineError(f"column {table_name}.{column_name} has no usable char_length")
-        try:
-            cl_val = int(char_length)
-        except (ValueError, TypeError) as e:
-            raise BaselineError(f"column {table_name}.{column_name} invalid char_length: {char_length!r}") from e
+        cl_val = _metadata_integer(char_length, f"column {table_name}.{column_name} char_length")
         if cl_val < 1:
             raise BaselineError(f"column {table_name}.{column_name} invalid char_length: {char_length!r}")
         predicates.append(f"CHAR_LENGTH = {cl_val}")
@@ -1670,10 +1651,7 @@ def _column_definition_check(schema: str, row: Mapping) -> dict:
         data_length = row.get("data_length")
         if data_length is None or isinstance(data_length, bool):
             raise BaselineError(f"column {table_name}.{column_name} RAW has no usable data_length")
-        try:
-            dl_val = int(data_length)
-        except (ValueError, TypeError) as e:
-            raise BaselineError(f"column {table_name}.{column_name} invalid data_length: {data_length!r}") from e
+        dl_val = _metadata_integer(data_length, f"column {table_name}.{column_name} data_length")
         if dl_val < 1:
             raise BaselineError(f"column {table_name}.{column_name} invalid data_length: {data_length!r}")
         predicates.append(f"DATA_LENGTH = {dl_val}")

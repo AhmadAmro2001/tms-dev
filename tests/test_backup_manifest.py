@@ -63,6 +63,18 @@ class BackupManifestParserTests(unittest.TestCase):
                 parse_manifest(source, "tables")
             self.assertIn("no readable object counts", str(cm.exception))
 
+    def test_all_ascii_whitespace_is_allowed_at_field_boundaries(self) -> None:
+        for whitespace in (" ", "\t", "\r", "\v", "\f", " \t\r\v\f"):
+            with self.subTest(whitespace=repr(whitespace)):
+                source = f"{whitespace}\r\n{whitespace}TABLE{whitespace}={whitespace}00{whitespace}\r\n"
+                self.assertEqual(parse_manifest(source, "tables"), {"TABLE": 0})
+
+    def test_non_ascii_whitespace_cannot_hide_invalid_rows(self) -> None:
+        for whitespace in ("\u0085", "\u00a0", "\u2028", "\u2029"):
+            for source in (f"TABLE=0{whitespace}\n", f"{whitespace}TABLE=0\n"):
+                with self.subTest(source=repr(source)), self.assertRaises(BackupManifestError):
+                    parse_manifest(source, "tables")
+
     def test_rejects_bom(self) -> None:
         with self.assertRaises(BackupManifestError) as cm:
             parse_manifest("\ufeffTABLE=1\n", "tables")

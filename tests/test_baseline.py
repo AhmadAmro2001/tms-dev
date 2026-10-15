@@ -607,6 +607,66 @@ class BaselineBuilderUnitTests(unittest.TestCase):
         self.assertIn("FLOAT", weight_check["sql"])
         self.assertIn("DATA_PRECISION = 63", weight_check["sql"])
 
+    def test_added_boolean_column_generates_a_scoped_definition_check(self) -> None:
+        config = {"schemas": ["APP_DEV"], "prefixes": [], "excludedObjects": []}
+        source = {"sections": {
+            "tables": [{"name": "APP_ITEMS"}],
+            "columns": [{"table_name": "APP_ITEMS", "name": "IS_ACTIVE", "data_type": "BOOLEAN", "nullable": "Y"}],
+        }}
+        target = {"sections": {"tables": [{"name": "APP_ITEMS"}], "columns": []}}
+        steps, checks = baseline._structure_bundle(
+            config, "APP_DEV", "APP_STAGE", source, target, SchemaSnapshot({}, {}, {}, {}, "", ""),
+        )
+        self.assertIn('ADD ("IS_ACTIVE" BOOLEAN)', next(iter(steps.values())))
+        self.assertEqual(len(checks["postconditions"]), 1)
+        check = checks["postconditions"][0]
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        connection.executescript("CREATE TABLE DUAL (X); INSERT INTO DUAL VALUES (1); "
+                                 "CREATE TABLE ALL_TAB_COLS (OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE);")
+        for owner, table, column, data_type, expected in (
+            ("APP_STAGE", "APP_ITEMS", "IS_ACTIVE", "BOOLEAN", 1),
+            ("OTHER", "APP_ITEMS", "IS_ACTIVE", "BOOLEAN", 0),
+            ("APP_STAGE", "OTHER", "IS_ACTIVE", "BOOLEAN", 0),
+            ("APP_STAGE", "APP_ITEMS", "OTHER", "BOOLEAN", 0),
+            ("APP_STAGE", "APP_ITEMS", "IS_ACTIVE", "NUMBER", 0),
+        ):
+            with self.subTest(owner=owner, table=table, column=column, data_type=data_type):
+                connection.execute("DELETE FROM ALL_TAB_COLS")
+                connection.execute("INSERT INTO ALL_TAB_COLS VALUES (?, ?, ?, ?)", (owner, table, column, data_type))
+                self.assertEqual(connection.execute(check["sql"]).fetchone()[0], expected)
+        connection.execute("DELETE FROM ALL_TAB_COLS")
+        self.assertEqual(connection.execute(check["sql"]).fetchone()[0], 0)
+
+    def test_fractional_and_nonfinite_metadata_is_refused_before_generation(self) -> None:
+        attributes = (
+            ("NUMBER", "data_precision", {}),
+            ("NUMBER", "data_scale", {}),
+            ("FLOAT", "data_precision", {}),
+            ("VARCHAR2", "char_length", {"char_used": "C"}),
+            ("CHAR", "data_length", {"char_used": "B"}),
+            ("NVARCHAR2", "char_length", {}),
+            ("NCHAR", "char_length", {}),
+            ("RAW", "data_length", {}),
+        )
+        for data_type, attribute, extra in attributes:
+            for value in (10.9, -2.9, Decimal("10.9"), float("inf"), float("nan"), Decimal("Infinity"), Decimal("NaN")):
+                row = {"table_name": "T", "name": "C", "data_type": data_type, **extra, attribute: value}
+                for operation in (baseline._table_column_type, lambda row: baseline._column_definition_check("APP_STAGE", row)):
+                    with self.subTest(data_type=data_type, attribute=attribute, value=value, operation=operation):
+                        with self.assertRaises(baseline.BaselineError):
+                            operation(row)
+
+    def test_integral_metadata_keeps_integer_representation_compatibility(self) -> None:
+        for precision in (10, "10", 10.0, Decimal("10.00")):
+            for scale in (-2, "-2", -2.0, Decimal("-2.00")):
+                row = {"table_name": "T", "name": "C", "data_type": "NUMBER", "data_precision": precision, "data_scale": scale}
+                with self.subTest(precision=precision, scale=scale):
+                    self.assertEqual(baseline._table_column_type(row), "NUMBER(10,-2)")
+                    check = baseline._column_definition_check("APP_STAGE", row)
+                    self.assertIn("DATA_PRECISION = 10", check["sql"])
+                    self.assertIn("DATA_SCALE = -2", check["sql"])
+
     def test_column_definition_check_details(self) -> None:
         schema = "APP_STAGE"
         # NUMBER(*,2)
@@ -790,6 +850,7 @@ class BaselineBuilderUnitTests(unittest.TestCase):
             ({"name": "C15", "data_type": "RAW", "data_length": 16}, "RAW(16)"),
             ({"name": "C16", "data_type": "TIMESTAMP(6) WITH TIME ZONE"}, "TIMESTAMP(6) WITH TIME ZONE"),
             ({"name": "C17", "data_type": "DATE"}, "DATE"),
+            ({"name": "C18", "data_type": "BOOLEAN"}, "BOOLEAN"),
         ]
         for row, expected in positive_cases:
             with self.subTest(row=row):
@@ -797,7 +858,6 @@ class BaselineBuilderUnitTests(unittest.TestCase):
 
         # Refusal cases
         refusal_cases = [
-            {"name": "C", "data_type": "BOOLEAN"},
             {"name": "C", "data_type": True},
             {"name": "C", "data_type": "NUMBER", "data_precision": True},
             {"name": "C", "data_type": "NUMBER", "data_scale": True},

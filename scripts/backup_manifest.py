@@ -18,6 +18,7 @@ SCOPE_DIRECTORIES: dict[str, tuple[str, ...]] = {
 }
 
 MAX_COUNT = 9223372036854775807  # 2^63 - 1
+ASCII_WHITESPACE = " \t\r\n\v\f"
 
 
 class BackupManifestError(ValueError):
@@ -34,11 +35,13 @@ def parse_manifest(source: str, scope: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     total = 0
 
-    lines = source.splitlines()
+    # Only LF/CRLF end records. splitlines() also splits vertical tabs, form
+    # feeds and Unicode separators, changing the promised field grammar.
+    lines = source.split("\n")
     non_empty_count = 0
 
     for line_num, line in enumerate(lines, start=1):
-        stripped = line.strip(" \t\r\n")
+        stripped = line.strip(ASCII_WHITESPACE)
         if not stripped:
             continue
         non_empty_count += 1
@@ -49,8 +52,8 @@ def parse_manifest(source: str, scope: str) -> dict[str, int]:
             )
 
         left, right = line.split("=")
-        obj_type = left.strip(" \t")
-        count_str = right.strip(" \t")
+        obj_type = left.strip(ASCII_WHITESPACE)
+        count_str = right.strip(ASCII_WHITESPACE)
 
         if obj_type not in required_types:
             if any(obj_type in types for s, types in SCOPE_TYPES.items() if s != scope):
