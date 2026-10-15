@@ -20,6 +20,7 @@ class ConfigError(ValueError):
     """Configuration error without value disclosure."""
 
 
+AGENT_STYLES = ("standard", "concise", "teaching", "asharif-style")
 ALLOWED_KEYS = frozenset({
     "PROJECT_NAME",
     "DEVELOPER_NAME",
@@ -28,6 +29,8 @@ ALLOWED_KEYS = frozenset({
     "APEX_WORKSPACE_USERNAME",
     "INSTALL_UC_APX",
     "UC_APX_SKILLS_AGENT",
+    "AGENT_STYLE",
+    "AGENT_STYLE_LEARNING",
     "TABLES_SCHEMA",
     "TABLES_PREFIXES",
     "TABLES_SQLCL_CONNECTION",
@@ -204,6 +207,10 @@ def read_project_env(path: Path) -> dict[str, str]:
         raise ConfigError("INSTALL_UC_APX must be true or false")
     if values.get("UC_APX_SKILLS_AGENT", "universal") not in ("universal", "claude-code"):
         raise ConfigError("UC_APX_SKILLS_AGENT must be universal or claude-code")
+    if values.get("AGENT_STYLE", "standard") not in AGENT_STYLES:
+        raise ConfigError("AGENT_STYLE must be one of: " + ", ".join(AGENT_STYLES))
+    if values.get("AGENT_STYLE_LEARNING", "on") not in ("on", "off"):
+        raise ConfigError("AGENT_STYLE_LEARNING must be on or off")
 
     # APEX_APP_ID validation
     if not RE_APP_ID_LIST.fullmatch(values["APEX_APP_ID"]):
