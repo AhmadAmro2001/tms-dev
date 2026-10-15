@@ -59,6 +59,10 @@ Three Claude Code entries (`chrome-devtools-mcp`, `safeguarding-apexlang-text-me
 and `sqlcl-mcp-r0`) are short pointers to the full `.agents/skills/` copy.
 You do not have to call them by name.
 
+Agents also load a conversation style at the start of each conversation: set `AGENT_STYLE` in
+`.env` (`standard`, `concise`, `teaching` or `asharif-style`). Your own preferences accumulate in
+`.agents/styles/personal.md`; see [.agents/styles/README.md](.agents/styles/README.md).
+
 **APEX and database skills**
 
 | Skill | Use it when |

@@ -16,7 +16,7 @@ Remove-Item -Path Env:PROD_SQLCL_CONNECTION, Env:PROD_EXPECTED_USER,
   Env:PROD_SCHEMA, Env:STAGING_SQLCL_CONNECTION, Env:STAGING_EXPECTED_USER,
   Env:STAGING_SCHEMA,
   Env:ORDS_SCHEMA, Env:ORDS_SQLCL_CONNECTION, Env:ORDS_EXPECTED_USER,
-  Env:INSTALL_UC_APX, Env:UC_APX_SKILLS_AGENT, Env:APEX_WORKSPACE_USERNAME -ErrorAction SilentlyContinue
+  Env:INSTALL_UC_APX, Env:UC_APX_SKILLS_AGENT, Env:AGENT_STYLE, Env:AGENT_STYLE_LEARNING, Env:APEX_WORKSPACE_USERNAME -ErrorAction SilentlyContinue
 foreach ($projectEnvMigrationPrefix in @("", "STAGING_", "PROD_")) {
   foreach ($projectEnvSuffix in @("SCHEMA", "SQLCL_CONNECTION", "EXPECTED_USER")) {
     Remove-Item -LiteralPath "Env:${projectEnvMigrationPrefix}MIGRATION_${projectEnvSuffix}" -ErrorAction SilentlyContinue
@@ -52,7 +52,7 @@ if (($projectEnvHead[0] -eq 0xFF -and $projectEnvHead[1] -eq 0xFE) -or ($project
 $projectEnvSeen = @{}
 $projectEnvAllowed = @(
   "PROJECT_NAME", "DEVELOPER_NAME", "DB_ENVIRONMENT", "APEX_APP_ID", "APEX_WORKSPACE_USERNAME",
-  "INSTALL_UC_APX", "UC_APX_SKILLS_AGENT",
+  "INSTALL_UC_APX", "UC_APX_SKILLS_AGENT", "AGENT_STYLE", "AGENT_STYLE_LEARNING",
   "TABLES_SCHEMA", "TABLES_PREFIXES", "TABLES_SQLCL_CONNECTION", "TABLES_EXPECTED_USER",
   "CODE_SCHEMA", "CODE_PREFIXES", "CODE_SQLCL_CONNECTION", "CODE_EXPECTED_USER",
   "APEX_PARSING_SCHEMA", "APEX_SQLCL_CONNECTION", "APEX_EXPECTED_USER",
@@ -97,6 +97,8 @@ foreach ($projectEnvLine in [System.IO.File]::ReadAllLines($EnvFile)) {
 
 if (-not $projectEnvSeen.ContainsKey("INSTALL_UC_APX")) { $env:INSTALL_UC_APX = "false" }
 if (-not $projectEnvSeen.ContainsKey("UC_APX_SKILLS_AGENT")) { $env:UC_APX_SKILLS_AGENT = "universal" }
+if (-not $projectEnvSeen.ContainsKey("AGENT_STYLE")) { $env:AGENT_STYLE = "standard" }
+if (-not $projectEnvSeen.ContainsKey("AGENT_STYLE_LEARNING")) { $env:AGENT_STYLE_LEARNING = "on" }
 
 $projectEnvRequired = @(
   "PROJECT_NAME", "DEVELOPER_NAME", "DB_ENVIRONMENT", "APEX_APP_ID",
@@ -263,6 +265,12 @@ if ($env:DB_ENVIRONMENT -cnotin @("development", "test", "staging", "production"
 if ($env:INSTALL_UC_APX -cnotin @("true", "false")) { throw "project environment error: INSTALL_UC_APX must be true or false" }
 if ($env:UC_APX_SKILLS_AGENT -cnotin @("universal", "claude-code")) {
   throw "project environment error: UC_APX_SKILLS_AGENT must be universal or claude-code"
+}
+if ($env:AGENT_STYLE -cnotin @("standard", "concise", "teaching", "asharif-style")) {
+  throw "project environment error: AGENT_STYLE must be one of: standard, concise, teaching, asharif-style"
+}
+if ($env:AGENT_STYLE_LEARNING -cnotin @("on", "off")) {
+  throw "project environment error: AGENT_STYLE_LEARNING must be on or off"
 }
 foreach ($projectEnvKey in @("TABLES_SCHEMA", "TABLES_EXPECTED_USER", "CODE_SCHEMA", "CODE_EXPECTED_USER",
     "APEX_PARSING_SCHEMA", "APEX_EXPECTED_USER", "STAGING_SCHEMA", "PROD_SCHEMA")) {
