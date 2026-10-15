@@ -317,6 +317,19 @@ class EnvironmentComparisonTests(unittest.TestCase):
         self.assertNotIn("LIKE 'Oracle Database%'", sql)
         self.assertEqual(sql.count("LIKE 'Oracle%Database%'"), 2)
 
+    def test_catalog_sql_constraints_page_before_correlated_subqueries(self) -> None:
+        """ORA-style paging with OFFSET evaluates select-list subqueries for every row before the offset; page the base rows first."""
+        sql = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
+        match = re.search(r"add_query_section\('constraints', q'~(.*?)~'\)", sql, flags=re.DOTALL)
+        self.assertIsNotNone(match)
+        query = match.group(1)
+        self.assertRegex(
+            query,
+            r"FROM \(SELECT[^~]*?FROM all_constraints p WHERE p\.owner = :scope\s+ORDER BY[^~]*?"
+            r"OFFSET :page_offset ROWS FETCH NEXT :page_size ROWS ONLY\) c\s+ORDER BY",
+        )
+        self.assertNotIn("FROM all_constraints r", query)
+
     def test_view_and_source_hashes_chain_ordered_body_lines(self) -> None:
         sql = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
         upper = sql.upper()

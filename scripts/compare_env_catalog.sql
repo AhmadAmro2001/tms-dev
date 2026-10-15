@@ -955,7 +955,7 @@ BEGIN
         FROM all_cons_columns cc WHERE cc.owner = c.owner AND cc.constraint_name = c.constraint_name), TO_CLOB('[]')) FORMAT JSON,
       'referenced_table' VALUE CASE WHEN c.r_constraint_name IS NULL THEN NULL ELSE
         CASE WHEN c.r_owner = c.owner THEN '<CONFIGURED_SCHEMA>' ELSE c.r_owner END || '.' ||
-        (SELECT r.table_name FROM all_constraints r WHERE r.owner = c.r_owner AND r.constraint_name = c.r_constraint_name) END,
+        (SELECT MAX(rt.table_name) FROM all_cons_columns rt WHERE rt.owner = c.r_owner AND rt.constraint_name = c.r_constraint_name) END,
       'referenced_columns' VALUE COALESCE((SELECT JSON_ARRAYAGG(rc.column_name ORDER BY rc.position RETURNING CLOB)
         FROM all_cons_columns rc WHERE rc.owner = c.r_owner AND rc.constraint_name = c.r_constraint_name), TO_CLOB('[]')) FORMAT JSON,
       'condition' VALUE c.search_condition_vc,
@@ -963,8 +963,12 @@ BEGIN
       'status' VALUE c.status, 'validated' VALUE c.validated,
       'delete_rule' VALUE c.delete_rule, 'deferrable' VALUE c.deferrable, 'deferred' VALUE c.deferred,
       'rely' VALUE c.rely RETURNING CLOB) row_json
-      FROM all_constraints c WHERE c.owner = :scope
-     ORDER BY c.table_name, c.constraint_type, c.constraint_name OFFSET :page_offset ROWS FETCH NEXT :page_size ROWS ONLY~');
+      FROM (SELECT p.owner, p.constraint_name, p.table_name, p.constraint_type, p.r_owner, p.r_constraint_name,
+                   p.search_condition_vc, p.status, p.validated, p.delete_rule, p.deferrable, p.deferred, p.rely
+              FROM all_constraints p WHERE p.owner = :scope
+             ORDER BY p.table_name, p.constraint_type, p.constraint_name
+            OFFSET :page_offset ROWS FETCH NEXT :page_size ROWS ONLY) c
+     ORDER BY c.table_name, c.constraint_type, c.constraint_name~');
 
   add_query_section('indexes', q'~
     SELECT JSON_OBJECT('name' VALUE i.index_name, 'table_name' VALUE i.table_name,
