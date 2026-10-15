@@ -116,7 +116,7 @@ under *Settings → General → Template repository*.)
 **B. From the command line:**
 
 ```bash
-git clone https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git my-apex-project
+git clone https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git my-apex-project
 cd my-apex-project
 git remote rename origin template     # keep the template as a separate remote
 git remote add origin <your-new-repository-url>
@@ -130,7 +130,7 @@ those three.
 ### Post-clone cleanup
 
 Do this in your new downstream project before its first push. The original
-`APEX_PROJECT_TEMPLATE_TEAM` repository retains its tests, workflows and
+`APEX_PROJECT_TEMPLATE_26_1` repository retains its tests, workflows and
 Dependabot for template development. The cleanup below is for a fresh clone;
 in an established project, preserve any project-specific tests or CI first.
 

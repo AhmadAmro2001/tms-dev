@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 . (Join-Path $PSScriptRoot "load_env.ps1") -EnvFile $env:PROJECT_ENV_FILE
 . (Join-Path $PSScriptRoot "invoke_sqlcl.ps1")
+. (Join-Path $PSScriptRoot "resolve_python.ps1")
 
 # A failed SPOOL inside the generated driver prints an SP2- message that does
 # not stop SQLcl, so an object can go missing without any non-zero exit code.
@@ -36,51 +37,13 @@ function Test-ScopeComplete {
   )
   $spoolSchema = Get-SqlclSpoolSchemaName -Schema $Schema
   $manifestPath = Join-Path $StagingPath "database/$spoolSchema/manifest-$Scope.txt"
-  $expected = 0
-  $counted = 0
-  $manifestTypes = @()
-  foreach ($line in (Get-Content -LiteralPath $manifestPath)) {
-    $separator = $line.LastIndexOf('=')
-    if ($separator -lt 0) { continue }
-    $manifestTypes += $line.Substring(0, $separator)
-    $count = $line.Substring($separator + 1).Trim()
-    $parsed = 0
-    if ([int]::TryParse($count, [ref] $parsed)) {
-      $expected += $parsed
-      $counted += 1
-    }
-  }
-
-  # No parsable counts at all means the manifest itself is unusable. Fail
-  # closed rather than approving whatever happens to be staged.
-  if ($counted -eq 0) {
-    throw ("database backup manifest for $Schema ($Scope) has no readable " +
-      "object counts; the mirror was not replaced")
-  }
-
-  if ($Scope -eq "tables") {
-    $requiredTypes = @("TABLE")
-  } else {
-    $requiredTypes = @("VIEW", "PACKAGE", "PACKAGE BODY", "PROCEDURE", "FUNCTION", "SYNONYM", "TRIGGER")
-  }
-  foreach ($requiredType in $requiredTypes) {
-    if ($manifestTypes -cnotcontains $requiredType) {
-      throw "database backup manifest for $Schema ($Scope) is missing the $requiredType row; the mirror was not replaced"
-    }
-  }
-
-  $scopeDirs = Get-ScopeDirectory -Scope $Scope
-  $actual = 0
-  foreach ($scopeDir in $scopeDirs) {
-    $scopePath = Join-Path $StagingPath "database/$spoolSchema/$scopeDir"
-    if (Test-Path -LiteralPath $scopePath) {
-      $actual += @(Get-ChildItem -LiteralPath $scopePath -File -Filter *.sql).Count
-    }
-  }
-
-  if ($expected -ne $actual) {
-    throw ("database backup is incomplete for $Schema ($Scope): manifest expects " +
-      "$expected object file(s) but $actual were written; the mirror was not replaced")
+  $mirrorPath = Join-Path $StagingPath "database/$spoolSchema"
+  $validator = Join-Path $PSScriptRoot "backup_manifest.py"
+  $python = Resolve-TeamPython
+  if ($null -eq $python) { throw "Python 3.10 or newer is required to validate backup manifests (python3, python or py -3)" }
+  & $python.Path @($python.Prefix) $validator --scope $Scope --manifest $manifestPath --mirror $mirrorPath --schema $Schema
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
   }
 }
 

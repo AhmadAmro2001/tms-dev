@@ -98,10 +98,24 @@ class TemplateManifestTests(unittest.TestCase):
         self.assertIn("docs/apex-26.1-qualification.md", self.manifest["templateOnly"])
         self.assertIn("docs/superpowers/**", self.manifest["templateOnly"])
 
+    def test_default_upstream_is_26_1_repository(self) -> None:
+        self.assertEqual(
+            self.manifest["upstream"],
+            "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git",
+        )
+
     def test_migration_revision_files_are_covered_by_template_ownership(self) -> None:
         for path in (
             "scripts/migration_revision.py",
             "tests/test_migration_revision.py",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+
+    def test_backup_manifest_files_are_covered_by_template_ownership(self) -> None:
+        for path in (
+            "scripts/backup_manifest.py",
+            "tests/test_backup_manifest.py",
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.classify(path), ["templateOwned"])

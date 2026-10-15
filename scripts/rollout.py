@@ -32,6 +32,7 @@ from scripts.ords_export import OrdsExportError, check_no_oauth, check_structure
 from scripts.path_utils import relative_to_root
 from scripts.sqlcl_session import ALIAS_RE, SqlclError, run_sqlcl
 from scripts.validate_app_source import validate_app_source
+from scripts.validate_migration import mask_comments_and_literals
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -466,7 +467,10 @@ def _read_script(path: Path, label: str, *, expected_sha256: str | None = None) 
 def validate_sql_script(source: str, number: int = 1) -> None:
     if not source.strip():
         raise RolloutError(f"step {number} SQL script is empty")
-    masked = mask_sql(source)
+    try:
+        masked = mask_comments_and_literals(source)
+    except ValueError as error:
+        raise RolloutError(f"step {number} SQL script is invalid: {error}") from error
     match = FORBIDDEN_SQLCL_COMMAND.search(masked)
     if match:
         directive = match.group(0).strip().split()[0]
@@ -998,6 +1002,7 @@ def _script_driver(
             "  DBMS_OUTPUT.PUT_LINE('ROLLOUT_TARGET:' || UPPER(NVL(v_database_name, '<NO_DB_NAME>')) || ':' || UPPER(NVL(v_db_unique_name, '<NO_DB_UNIQUE_NAME>')) || ':' || UPPER(NVL(v_service_name, '<NO_SERVICE>')));",
             "END;",
             "/",
+            "SET SQLBLANKLINES ON",
             "@@payload.sql",
             f"PROMPT ROLLOUT_SCRIPT_COMPLETED:{step_number:04d}",
             "EXIT SUCCESS ROLLBACK",

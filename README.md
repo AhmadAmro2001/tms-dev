@@ -594,8 +594,8 @@ repository has no `.template-lock.json`, the source resolves from its own
 is used when no explicit source is supplied:
 
 ```bash
-git clone https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git /tmp/apex-template
-python3 /tmp/apex-template/scripts/upgrade_template.py --project-root . --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git
+git clone https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git /tmp/apex-template
+python3 /tmp/apex-template/scripts/upgrade_template.py --project-root . --source https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git
 ```
 
 That first run has no lock, so every file that differs from the template is

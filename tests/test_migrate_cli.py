@@ -1001,6 +1001,104 @@ class MigrateCliTests(unittest.TestCase):
                 record = json.loads(manifest_path.read_text(encoding="utf-8"))["migrations"][0]
                 self.assertEqual(record["failedCheckIds"], [f"check-{index:02}" for index in range(22)])
 
+    def test_column_definition_postcondition_failure_blocks_receipt(self):
+        col_check = {
+            "id": "column-def-items-note-abc12345",
+            "sql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM ALL_TAB_COLS WHERE OWNER = 'APP_STAGE' AND TABLE_NAME = 'ITEMS' AND COLUMN_NAME = 'NOTE' AND DATA_TYPE = 'VARCHAR2' AND CHAR_USED = 'C' AND CHAR_LENGTH = 100) THEN 1 ELSE 0 END FROM DUAL",
+            "expected": 1,
+        }
+        folder = self.add_folder(
+            "2026-10-15_col-def-fail-r001",
+            {
+                "001-create-items.sql": "CREATE TABLE ITEMS (ID NUMBER);\n",
+                "002-add-column.sql": "ALTER TABLE ITEMS ADD (NOTE VARCHAR2(100 CHAR));\n",
+            },
+            postconditions=[col_check],
+        )
+        migrations = self.load(folder.name)
+        fake = FakeDatabase(self.target())
+
+        def fail_col_check(target, checks, run_dir, *, phase, fake=fake):
+            if phase != "postconditions":
+                return fake.run_checks(target, checks, run_dir, phase=phase)
+            results = ({
+                "id": col_check["id"], "row_count": 1, "column_count": 1,
+                "numeric": True, "value": 0, "passed": False,
+            },)
+            errors = ({
+                "code": "CHECK_FAILED", "check": col_check["id"], "expected": 1,
+                "observedValue": 0, "message": "column definition check failed",
+            },)
+            return CheckReport(False, True, results, errors, {
+                "phase": phase, "complete": True, "identity": fake.identity(),
+                "failedCheckIds": [col_check["id"]],
+            })
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result, _ = self.apply(migrations, fake=fake, run_checks_fn=fail_col_check)
+
+        self.assertEqual(result, 2)
+        self.assertFalse((folder / "receipt.json").exists())
+        self.assertIn("column-def-items-note", stderr.getvalue())
+
+    def test_view_validity_postcondition_failure_blocks_receipt(self):
+        view_check = {
+            "id": "valid-view-v-items-abc12345",
+            "sql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM ALL_OBJECTS WHERE OWNER = 'APP_STAGE' AND OBJECT_NAME = 'V_ITEMS' AND OBJECT_TYPE = 'VIEW' AND STATUS = 'VALID') AND NOT EXISTS (SELECT 1 FROM ALL_ERRORS WHERE OWNER = 'APP_STAGE' AND NAME = 'V_ITEMS' AND TYPE = 'VIEW' AND ATTRIBUTE = 'ERROR') THEN 1 ELSE 0 END FROM DUAL",
+            "expected": 1,
+        }
+        folder = self.add_folder(
+            "2026-10-15_view-invalid-r001",
+            {
+                "001-create-items.sql": "CREATE TABLE ITEMS (ID NUMBER);\n",
+                "002-create-view.sql": "CREATE OR REPLACE VIEW V_ITEMS AS SELECT ID FROM ITEMS;\n",
+            },
+            postconditions=[
+                {"id": "view-v-items-abc12345", "sql": "SELECT CASE WHEN (SELECT COUNT(*) FROM ALL_VIEWS WHERE OWNER = 'APP_STAGE' AND VIEW_NAME = 'V_ITEMS') = 1 THEN 1 ELSE 0 END FROM DUAL", "expected": 1},
+                view_check,
+            ],
+        )
+        migrations = self.load(folder.name)
+        fake = FakeDatabase(self.target())
+
+        def fail_view_validity(target, checks, run_dir, *, phase, fake=fake):
+            if phase != "postconditions":
+                return fake.run_checks(target, checks, run_dir, phase=phase)
+            # Existence passes (value=1, passed=True), validity fails (value=0, passed=False)
+            results = (
+                {
+                    "id": "view-v-items-abc12345", "row_count": 1, "column_count": 1,
+                    "numeric": True, "value": 1, "passed": True,
+                },
+                {
+                    "id": view_check["id"], "row_count": 1, "column_count": 1,
+                    "numeric": True, "value": 0, "passed": False,
+                },
+            )
+            errors = ({
+                "code": "CHECK_FAILED", "check": view_check["id"], "expected": 1,
+                "observedValue": 0, "message": "view is invalid or has compilation errors",
+            },)
+            return CheckReport(False, True, results, errors, {
+                "phase": phase, "complete": True, "identity": fake.identity(),
+                "failedCheckIds": [view_check["id"]],
+            })
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result, _ = self.apply(migrations, fake=fake, run_checks_fn=fail_view_validity)
+
+        self.assertEqual(result, 2)
+        self.assertFalse((folder / "receipt.json").exists())
+        self.assertIn("valid-view-v-items", stderr.getvalue())
+        manifest_path = next(
+            path for path in (self.root / "scratch").glob("migration-attempt-*/run-manifest.json")
+            if json.loads(path.read_text(encoding="utf-8"))["migrations"][0]["folder"] == folder.name
+        )
+        record = json.loads(manifest_path.read_text(encoding="utf-8"))["migrations"][0]
+        self.assertEqual(record["failedCheckIds"], [view_check["id"]])
+
     def test_postcondition_with_no_check_output_says_why_and_keeps_evidence(self):
         folder = self.add_folder("2026-10-03_no-output-r001", {"001-create-t.sql": "CREATE TABLE T (ID NUMBER);\n"})
         migrations = self.load(folder.name)
