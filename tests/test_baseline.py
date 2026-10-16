@@ -1280,7 +1280,7 @@ class BaselineBuildIntegrationTests(unittest.TestCase):
                 "002-view-v-alpha-c84bc776.sql": "8fa2d6c64ae5ae045a97e66185ac6df772b95ab9a72bd65a0fbe6fa12e05b408",
                 "003-compile-all.sql": "129069e30a63ed90794a92a868333fe69a285bb2b43085bd2fdc83665d2abc9b",
                 "README.md": "e6be64748b36edf32d8b43f0d16421921aadfc0ac668a257783cbc75976693bf",
-                "checks.json": "5869ce5b44f129996f1af2834f29a50e83e62bce4ff66048c80b7fb68e5af724",
+                "checks.json": "f7af1a3345cae5c3e9e2584055b8b3aa9149108474e114c05ee5e077aa4b745b",
             },
             "baseline-grants": {
                 "001-object-grants.sql": "b33b8ba6a46f8214f2348ced90a82d4800bb11964fe891ff23db593ac5b90de4",

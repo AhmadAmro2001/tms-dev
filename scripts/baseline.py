@@ -1887,7 +1887,7 @@ def _exact_settings_check(settings: Mapping, name: str, object_type: str, schema
     clauses.append("S.PLSQL_CCFLAGS IS NULL" if settings["plsql_ccflags"] is None else f"S.PLSQL_CCFLAGS = {_sql_literal(str(settings['plsql_ccflags']))}")
     query = (
         "SELECT CASE WHEN EXISTS (SELECT 1 FROM ALL_PLSQL_OBJECT_SETTINGS S "
-        f"WHERE S.OWNER = {_sql_literal(schema)} AND S.NAME = {_sql_literal(name)} AND S.TYPE = {_sql_literal(object_type)} "
+        f"WHERE S.OWNER = {_sql_literal(schema)} AND S.NAME = {_sql_literal(name)} AND S.TYPE = {_sql_literal(object_type)} AND "
         + " AND ".join(clauses) + ") THEN 1 ELSE 0 END FROM DUAL"
     )
     return _check(f"settings-{_safe_check_slug(name + '-' + object_type)}", query)
