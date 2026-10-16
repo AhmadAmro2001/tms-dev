@@ -318,6 +318,32 @@ class LocalConfigTests(unittest.TestCase):
             read_project_env(Path("/nonexistent/path/to/.env"))
         self.assertIn("configuration file not found", str(ctx.exception))
 
+    def test_dba_sqlcl_connection_settings(self) -> None:
+        content = VALID_BASE_CONFIG + (
+            "DEV_DBA_SQLCL_CONNECTION=dev-dba\n"
+            "STAGING_DBA_SQLCL_CONNECTION=stage_dba.1\n"
+            "PROD_DBA_SQLCL_CONNECTION=prod-dba-01\n"
+        )
+        values = read_project_env(self.write_env(content))
+        self.assertEqual(values["DEV_DBA_SQLCL_CONNECTION"], "dev-dba")
+        self.assertEqual(values["STAGING_DBA_SQLCL_CONNECTION"], "stage_dba.1")
+        self.assertEqual(values["PROD_DBA_SQLCL_CONNECTION"], "prod-dba-01")
+
+    def test_dba_sqlcl_connection_empty_rejected(self) -> None:
+        for key in ("DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION"):
+            for bad_val in ("", "   "):
+                with self.subTest(key=key, bad_val=bad_val):
+                    with self.assertRaises(ConfigError) as ctx:
+                        read_project_env(self.write_env(VALID_BASE_CONFIG + f"{key}={bad_val}\n"))
+                    self.assertIn(f"{key} must not be empty", str(ctx.exception))
+
+    def test_dba_sqlcl_connection_invalid_characters_rejected(self) -> None:
+        for invalid in ("dev,dba", "dev dba", "-leading", ".leading", "has/slash"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ConfigError) as ctx:
+                    read_project_env(self.write_env(VALID_BASE_CONFIG + f"DEV_DBA_SQLCL_CONNECTION={invalid}\n"))
+                self.assertIn("DEV_DBA_SQLCL_CONNECTION contains unsupported characters", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

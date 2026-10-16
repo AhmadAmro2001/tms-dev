@@ -123,7 +123,8 @@ while IFS= read -r project_env_line || [ -n "$project_env_line" ]; do
     STAGING_MIGRATION_SCHEMA|STAGING_MIGRATION_SQLCL_CONNECTION|STAGING_MIGRATION_EXPECTED_USER|\
     PROD_MIGRATION_SCHEMA|PROD_MIGRATION_SQLCL_CONNECTION|PROD_MIGRATION_EXPECTED_USER|\
     MIGRATION_APPLY_TIMEOUT_SECONDS|MIGRATION_CHECK_TIMEOUT_SECONDS|MIGRATION_CHECK_BATCH_BYTES|\
-    MIGRATION_PREFLIGHT_INVENTORY_RETRIES) ;;
+    MIGRATION_PREFLIGHT_INVENTORY_RETRIES|\
+    DEV_DBA_SQLCL_CONNECTION|STAGING_DBA_SQLCL_CONNECTION|PROD_DBA_SQLCL_CONNECTION) ;;
     *)
       project_env_fail "unsupported setting in $PROJECT_ENV_FILE: $project_env_key"
       return 1 2>/dev/null || exit 1
@@ -440,6 +441,21 @@ done
 project_env_check_aligned TABLES_SCHEMA TABLES_SQLCL_CONNECTION TABLES_EXPECTED_USER || { return 1 2>/dev/null || exit 1; }
 project_env_check_aligned CODE_SCHEMA CODE_SQLCL_CONNECTION CODE_EXPECTED_USER || { return 1 2>/dev/null || exit 1; }
 project_env_check_aligned APEX_PARSING_SCHEMA APEX_SQLCL_CONNECTION APEX_EXPECTED_USER || { return 1 2>/dev/null || exit 1; }
+
+for project_env_dba_key in DEV_DBA_SQLCL_CONNECTION STAGING_DBA_SQLCL_CONNECTION PROD_DBA_SQLCL_CONNECTION; do
+  if [ "${!project_env_dba_key+x}" = x ]; then
+    project_env_dba_value="${!project_env_dba_key}"
+    if [ -z "${project_env_dba_value//[[:space:]]/}" ]; then
+      project_env_fail "$project_env_dba_key must not be empty"
+      return 1 2>/dev/null || exit 1
+    fi
+    if ! project_env_match "$project_env_dba_value" '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+      project_env_fail "$project_env_dba_key contains unsupported characters"
+      return 1 2>/dev/null || exit 1
+    fi
+    export "$project_env_dba_key=$project_env_dba_value"
+  fi
+done
 
 # The configured schemas, and whether any list names more than one.
 project_env_union=()

@@ -60,7 +60,8 @@ $projectEnvAllowed = @(
   "STAGING_SQLCL_CONNECTION", "STAGING_EXPECTED_USER", "STAGING_SCHEMA",
   "ORDS_SCHEMA", "ORDS_SQLCL_CONNECTION", "ORDS_EXPECTED_USER",
   "MIGRATION_APPLY_TIMEOUT_SECONDS", "MIGRATION_CHECK_TIMEOUT_SECONDS", "MIGRATION_CHECK_BATCH_BYTES",
-  "MIGRATION_PREFLIGHT_INVENTORY_RETRIES"
+  "MIGRATION_PREFLIGHT_INVENTORY_RETRIES",
+  "DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION"
 )
 foreach ($projectEnvMigrationPrefix in @("", "STAGING_", "PROD_")) {
   foreach ($projectEnvSuffix in @("SCHEMA", "SQLCL_CONNECTION", "EXPECTED_USER")) {
@@ -282,6 +283,18 @@ foreach ($projectEnvKey in @("TABLES_SQLCL_CONNECTION", "CODE_SQLCL_CONNECTION",
 Assert-ProjectEnvTriple -SchemaKey TABLES_SCHEMA -ConnectionKey TABLES_SQLCL_CONNECTION -UserKey TABLES_EXPECTED_USER
 Assert-ProjectEnvTriple -SchemaKey CODE_SCHEMA -ConnectionKey CODE_SQLCL_CONNECTION -UserKey CODE_EXPECTED_USER
 Assert-ProjectEnvTriple -SchemaKey APEX_PARSING_SCHEMA -ConnectionKey APEX_SQLCL_CONNECTION -UserKey APEX_EXPECTED_USER
+
+foreach ($projectEnvDbaKey in @("DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION")) {
+  if (Test-Path -LiteralPath "Env:$projectEnvDbaKey") {
+    $projectEnvDbaVal = (Get-Item -LiteralPath "Env:$projectEnvDbaKey").Value
+    if ([string]::IsNullOrWhiteSpace($projectEnvDbaVal)) {
+      throw "project environment error: $projectEnvDbaKey must not be empty"
+    }
+    if ($projectEnvDbaVal -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
+      throw "project environment error: $projectEnvDbaKey contains unsupported characters"
+    }
+  }
+}
 
 # The configured schemas, and whether any list names more than one.
 $projectEnvUnion = @()

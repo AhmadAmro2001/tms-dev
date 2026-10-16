@@ -16,7 +16,7 @@ py-modules = []
 
 [project.optional-dependencies]
 # Required only by setup_graphify_apx.py.
-graph = ["graphify", "tree-sitter-sql"]
+graph = ["graphifyy", "tree-sitter-sql"]
 # Optional Python linting.
 dev = ["ruff>=0.5"]
 

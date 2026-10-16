@@ -55,6 +55,9 @@ ALLOWED_KEYS = frozenset({
     "MIGRATION_CHECK_TIMEOUT_SECONDS",
     "MIGRATION_CHECK_BATCH_BYTES",
     "MIGRATION_PREFLIGHT_INVENTORY_RETRIES",
+    "DEV_DBA_SQLCL_CONNECTION",
+    "STAGING_DBA_SQLCL_CONNECTION",
+    "PROD_DBA_SQLCL_CONNECTION",
 }) | frozenset(prefix + "MIGRATION_" + suffix
                for prefix in ("", "STAGING_", "PROD_")
                for suffix in ("SCHEMA", "SQLCL_CONNECTION", "EXPECTED_USER"))
@@ -308,5 +311,12 @@ def read_project_env(path: Path) -> dict[str, str]:
         for s_item, u_item in zip(ords_schemas, ords_users, strict=True):
             if s_item != u_item:
                 raise ConfigError("ORDS_EXPECTED_USER must equal ORDS_SCHEMA entry for entry: the ORDS export logs in as the REST schema owner")
+
+    for dba_key in ("DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION"):
+        if dba_key in seen_keys:
+            if not values[dba_key].strip():
+                raise ConfigError(f"{dba_key} must not be empty")
+            if not RE_ALIAS.fullmatch(values[dba_key]):
+                raise ConfigError(f"{dba_key} contains unsupported characters")
 
     return values

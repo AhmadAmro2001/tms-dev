@@ -198,6 +198,53 @@ class BashEnvironmentListTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("STAGING_SCHEMA is required", result.stderr)
 
+    def test_dba_sqlcl_connections_load_from_file_and_override_ambient(self) -> None:
+        extra = "\nDEV_DBA_SQLCL_CONNECTION=file-dev-dba\nSTAGING_DBA_SQLCL_CONNECTION=file-stage-dba\nPROD_DBA_SQLCL_CONNECTION=file-prod-dba\n"
+        env_path = write_env(self.directory, {}, extra)
+        env = os.environ.copy()
+        env["DEV_DBA_SQLCL_CONNECTION"] = "ambient-dev-dba"
+        result = subprocess.run(
+            [BASH, "-c", 'set -e; source "$1" "$2"; printf "%s|%s|%s\\n" "$DEV_DBA_SQLCL_CONNECTION" "$STAGING_DBA_SQLCL_CONNECTION" "$PROD_DBA_SQLCL_CONNECTION"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("file-dev-dba|file-stage-dba|file-prod-dba\n", result.stdout)
+
+    def test_dba_sqlcl_connection_ambient_preserved_when_absent_from_file(self) -> None:
+        env_path = write_env(self.directory, {})
+        env = os.environ.copy()
+        env["DEV_DBA_SQLCL_CONNECTION"] = "ambient-dev-dba"
+        result = subprocess.run(
+            [BASH, "-c", 'set -e; source "$1" "$2"; printf "%s\\n" "$DEV_DBA_SQLCL_CONNECTION"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("ambient-dev-dba\n", result.stdout)
+
+    def test_dba_sqlcl_connection_refusals(self) -> None:
+        # File blank
+        env_path = write_env(self.directory, {}, "\nDEV_DBA_SQLCL_CONNECTION=\n")
+        result = load(env_path)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("DEV_DBA_SQLCL_CONNECTION must not be empty", result.stderr)
+
+        # File comma list
+        env_path = write_env(self.directory, {}, "\nDEV_DBA_SQLCL_CONNECTION=dba1,dba2\n")
+        result = load(env_path)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("DEV_DBA_SQLCL_CONNECTION contains unsupported characters", result.stderr)
+
+        # Ambient blank
+        env_path = write_env(self.directory, {})
+        env = os.environ.copy()
+        env["DEV_DBA_SQLCL_CONNECTION"] = "   "
+        result = subprocess.run(
+            [BASH, "-c", 'set -e; source "$1" "$2"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("DEV_DBA_SQLCL_CONNECTION must not be empty", result.stderr)
+
     def test_require_single_refuses_a_multi_project_without_a_selection(self) -> None:
         env_path = write_env(self.directory, MULTI)
         refused = load(env_path, probe='project_env_require_single "unit test"')
@@ -263,6 +310,26 @@ class PowerShellEnvironmentListTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertIn("must not contain empty entries", plain(result.stderr))
 
+    def test_dba_sqlcl_connections_load_from_file_and_override_ambient(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            env_path = write_env(Path(temporary), {}, "\nDEV_DBA_SQLCL_CONNECTION=file-dev-dba\nSTAGING_DBA_SQLCL_CONNECTION=file-stage-dba\nPROD_DBA_SQLCL_CONNECTION=file-prod-dba\n")
+            env = os.environ.copy()
+            env["DEV_DBA_SQLCL_CONNECTION"] = "ambient-dev-dba"
+            script = f'. "{ROOT / "scripts" / "load_env.ps1"}" -EnvFile "{env_path}"; "$($env:DEV_DBA_SQLCL_CONNECTION)|$($env:STAGING_DBA_SQLCL_CONNECTION)|$($env:PROD_DBA_SQLCL_CONNECTION)"'
+            result = subprocess.run([PWSH, "-NoProfile", "-Command", script], env=env, text=True, capture_output=True, check=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("file-dev-dba|file-stage-dba|file-prod-dba", result.stdout.strip())
+
+    def test_dba_sqlcl_connection_ambient_preserved_when_absent_from_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            env_path = write_env(Path(temporary), {})
+            env = os.environ.copy()
+            env["DEV_DBA_SQLCL_CONNECTION"] = "ambient-dev-dba"
+            script = f'. "{ROOT / "scripts" / "load_env.ps1"}" -EnvFile "{env_path}"; "$($env:DEV_DBA_SQLCL_CONNECTION)"'
+            result = subprocess.run([PWSH, "-NoProfile", "-Command", script], env=env, text=True, capture_output=True, check=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("ambient-dev-dba", result.stdout.strip())
+
     def test_refusals_match_the_bash_loader_word_for_word(self) -> None:
         # Both loaders are also run directly (and by the helper scripts); the PowerShell one
         # used to drop the "project environment error:" prefix on most of its refusals.
@@ -274,6 +341,8 @@ class PowerShellEnvironmentListTests(unittest.TestCase):
             "lengths": {**MULTI, "CODE_EXPECTED_USER=ONE,TWO": "CODE_EXPECTED_USER=ONE"},
             "empty entry": {**MULTI, "CODE_SCHEMA=ONE,TWO": "CODE_SCHEMA=ONE,,TWO"},
             "lowercase": {**MULTI, "CODE_SCHEMA=ONE,TWO": "CODE_SCHEMA=ONE,two"},
+            "dba blank": {"PROJECT_NAME=apex-team-template": "PROJECT_NAME=apex-team-template\nDEV_DBA_SQLCL_CONNECTION="},
+            "dba comma": {"PROJECT_NAME=apex-team-template": "PROJECT_NAME=apex-team-template\nDEV_DBA_SQLCL_CONNECTION=dba1,dba2"},
         }
         for label, replacements in cases.items():
             with self.subTest(case=label), tempfile.TemporaryDirectory() as temporary:

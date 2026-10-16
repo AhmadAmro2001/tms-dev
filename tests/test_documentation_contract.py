@@ -178,6 +178,18 @@ class DocumentationContractTests(unittest.TestCase):
         guide = (ROOT / "docs" / "GETTING_STARTED.md").read_text(encoding="utf-8")
         self.assertIn("py -3 --version", guide)
 
+    def test_clone_and_upgrade_examples_select_the_26_1_release(self) -> None:
+        for path in (ROOT / "docs" / "GETTING_STARTED.md", ROOT / "README.md"):
+            with self.subTest(document=path.name):
+                # Historical TEAM URLs in recovery explanations are deliberate.
+                # Check executable examples rather than banning their provenance.
+                examples = re.findall(r"```bash\n(.*?)```", path.read_text(encoding="utf-8"), re.DOTALL)
+                commands = [line for block in examples for line in block.splitlines()
+                            if ("git clone " in line or "--source " in line) and "APEX_PROJECT_TEMPLATE_" in line]
+                self.assertTrue(commands)
+                for command in commands:
+                    self.assertIn("https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git", command)
+
     def test_troubleshooting_explains_the_team_ps1_refusals_about_bash(self) -> None:
         # The table quotes these messages verbatim, so rewording one must update it.
         troubleshooting = (ROOT / "docs" / "TROUBLESHOOTING.md").read_text(encoding="utf-8")
@@ -290,6 +302,8 @@ class DocumentationContractTests(unittest.TestCase):
     def test_ci_runs_behavioral_unittest_suite(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "database-checks.yml").read_text(encoding="utf-8")
         self.assertIn("python3 -m unittest discover -s tests -v", workflow)
+        self.assertIn("python3 -m pip install --dry-run", workflow)
+        self.assertIn(".[graph]", workflow)
 
     def test_active_markdown_links_resolve(self) -> None:
         for path in DOCS:

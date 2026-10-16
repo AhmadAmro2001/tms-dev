@@ -168,60 +168,12 @@ verify_scope_complete() {
   spool_schema="$(schema_stage_directory "$schema")"
   local mirror_stage="$STAGING_DIR/database/$spool_schema"
   local manifest="$mirror_stage/manifest-$scope.txt"
-  local expected=0
-  local counted=0
-  local manifest_types='|'
-  local line object_type count
-  while IFS= read -r line || [ -n "$line" ]; do
-    # SQLcl spools with the platform's line terminator, so on Windows every
-    # manifest line arrives with a trailing CR. Left in place it defeats the
-    # numeric test below, every count is skipped, and the guard silently
-    # compares 0 against 0 -- passing an empty mirror straight through.
-    line="${line%$'\r'}"
-    [[ "$line" == *=* ]] || continue
-    object_type="${line%=*}"
-    manifest_types+="$object_type|"
-    count="${line##*=}"
-    [[ "$count" =~ ^[0-9]+$ ]] || continue
-    expected=$((expected + count))
-    counted=$((counted + 1))
-  done < "$manifest"
 
-  # No parsable counts at all means the manifest itself is unusable. Fail
-  # closed rather than approving whatever happens to be staged.
-  if [ "$counted" -eq 0 ]; then
-    echo "database backup manifest for $schema ($scope) has no readable object" >&2
-    echo "counts; the mirror was not replaced" >&2
-    exit 2
-  fi
-
-  local -a required_types
-  case "$scope" in
-    tables) required_types=(TABLE) ;;
-    code) required_types=(VIEW PACKAGE 'PACKAGE BODY' PROCEDURE FUNCTION SYNONYM TRIGGER) ;;
-    *) echo "unsupported backup scope: $scope" >&2; exit 2 ;;
-  esac
-  local required_type
-  for required_type in "${required_types[@]}"; do
-    if [[ "$manifest_types" != *"|$required_type|"* ]]; then
-      echo "database backup manifest for $schema ($scope) is missing the $required_type row; the mirror was not replaced" >&2
-      exit 2
-    fi
-  done
-
-  local actual=0
-  local scope_dir found
-  while IFS= read -r scope_dir; do
-    found="$(find "$mirror_stage/$scope_dir" -maxdepth 1 -type f \
-      -name '*.sql' 2>/dev/null | wc -l)"
-    actual=$((actual + found))
-  done < <(scope_directories "$scope")
-
-  if [ "$expected" -ne "$actual" ]; then
-    echo "database backup is incomplete for $schema ($scope): manifest expects" >&2
-    echo "$expected object file(s) but $actual were written; the mirror was not replaced" >&2
-    exit 2
-  fi
+  python3 "$REPO_ROOT/scripts/backup_manifest.py" \
+    --scope "$scope" \
+    --manifest "$manifest" \
+    --mirror "$mirror_stage" \
+    --schema "$schema" || exit $?
 }
 
 run_backup_scope() {

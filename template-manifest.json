@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "upstream": "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_TEAM.git",
+  "upstream": "https://github.com/ash2osh/APEX_PROJECT_TEMPLATE_26_1.git",
   "templateOwned": [
     ".agents/rules/agent-safety.md",
     ".agents/rules/graphify.md",
