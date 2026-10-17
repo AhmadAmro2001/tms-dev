@@ -32,7 +32,7 @@ from scripts.ords_export import OrdsExportError, check_no_oauth, check_structure
 from scripts.path_utils import relative_to_root
 from scripts.sqlcl_session import ALIAS_RE, SqlclError, run_sqlcl
 from scripts.validate_app_source import validate_app_source
-from scripts.validate_migration import mask_comments_and_literals
+from scripts.validate_migration import validate_sql_only
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,9 +40,6 @@ ORACLE_IDENTIFIER = re.compile(r"[A-Z][A-Z0-9_$#]{0,127}\Z", re.ASCII)
 MANIFEST_SCHEMA_VERSION = 1
 REPORT_SCHEMA_VERSION = 1
 RECEIPT_SCHEMA_VERSION = 1
-FORBIDDEN_SQLCL_COMMAND = re.compile(
-    r"(?im)^[ \t]*(?:@@?[^\r\n]*|![^\r\n]*|(?:START|CONNECT|DISCONNECT|EXIT|QUIT|HOST|WHENEVER|SPOOL|STORE|PASSWORD|ACCEPT|SET|PROMPT|UNDEFINE|VARIABLE|PRINT|COLUMN|TTITLE|BTITLE|BREAK|COMPUTE|CLEAR|SHOW|DESCRIBE|INFO|PAUSE)(?:[ \t]|$))"
-)
 ROLLOUT_MARKER_LITERAL = re.compile(r"(?i)ROLLOUT_(?:IDENTITY|TARGET|SCRIPT_COMPLETED)")
 CURRENT_SCHEMA_CHANGE = re.compile(r"(?is)\bALTER\s+SESSION\s+SET\s+CURRENT_SCHEMA\b")
 ORDS_CALL = re.compile(r"(?im)\b(?:ORDS(?:_ADMIN)?|ORDS_METADATA)\.[A-Z][A-Z0-9_]*[ \t]*\(")
@@ -66,6 +63,21 @@ class StepResult:
     exit_code: int
     evidence_paths: tuple[str, ...] = ()
     message: str = ""
+
+
+OBSERVED_IDENTITY_FIELDS = (
+    "session_user", "current_schema", "db_name", "db_unique_name", "service_name",
+    "container_id", "container_name", "edition", "database_version",
+)
+
+
+def _observe_target_identity(target: Target, run_dir: Path) -> dict[str, str]:
+    """Read the complete target identity through the existing catalog path."""
+    from scripts.schema_catalog import capture_inventory
+
+    inventory = capture_inventory(target, run_dir)
+    receipt_identity = migrate._identity_for_receipt(inventory, target)
+    return {field: receipt_identity[field] for field in OBSERVED_IDENTITY_FIELDS}
 
 
 def _utc_now() -> str:
@@ -468,16 +480,9 @@ def validate_sql_script(source: str, number: int = 1) -> None:
     if not source.strip():
         raise RolloutError(f"step {number} SQL script is empty")
     try:
-        masked = mask_comments_and_literals(source)
+        validate_sql_only(source, allow_transaction_control=True)
     except ValueError as error:
-        raise RolloutError(f"step {number} SQL script is invalid: {error}") from error
-    match = FORBIDDEN_SQLCL_COMMAND.search(masked)
-    if match:
-        directive = match.group(0).strip().split()[0]
-        raise RolloutError(
-            f"step {number} SQL script contains unsupported SQLcl directive {directive}; "
-            "connection changes, nested files, client exits and guard overrides are refused"
-        )
+        raise RolloutError(f"step {number} SQL script is not safe SQL-only source: {error}") from error
     if ROLLOUT_MARKER_LITERAL.search(source):
         raise RolloutError(f"step {number} SQL script cannot emit reserved ROLLOUT_ verification markers")
     if CURRENT_SCHEMA_CHANGE.search(source):
@@ -1075,6 +1080,46 @@ def _execute_sql_payload(
     if environment != "prod" and looks_like_production_identity(*targets[0]):
         return StepResult(2, _relative_paths((driver, evidence_dir / "payload.sql", evidence_dir / "sqlcl-output.log"), repo_root), "observed SQLcl database/service identity resembles production while the selected environment is not prod")
     return StepResult(0, _relative_paths((driver, evidence_dir / "payload.sql", evidence_dir / "sqlcl-output.log"), repo_root), "script completed with the expected identity")
+
+
+def _target_binding(step: dict, repo_root: Path, environment: str) -> dict | None:
+    """Describe an explicit SQL-script target for callers that recheck its identity.
+
+    APEX 26.1 rollout predates the 26.2 target-binding planner. Keep this
+    adapter limited to explicit SQL-script targets; it does not resolve or
+    broaden project profiles.
+    """
+    del repo_root  # The explicit SQL-script step carries its complete target.
+    if step.get("type") == "pause":
+        return None
+    if step.get("type") not in {"sql-script", "ords-import"}:
+        raise RolloutError("26.1 target binding supports only explicit SQL-script and ORDS targets")
+    if environment not in {"dev", "staging", "prod"}:
+        raise RolloutError("environment must be dev, staging, or prod")
+    classification = {
+        "dev": str(os.environ.get("DB_ENVIRONMENT", "development")).casefold(),
+        "staging": "staging",
+        "prod": "production",
+    }[environment]
+    if classification not in {"development", "test", "staging", "production"}:
+        raise RolloutError("DB_ENVIRONMENT must be development, test, staging, or production")
+    if environment == "dev" and classification not in {"development", "test"}:
+        raise RolloutError("DEV SQL-script steps require DB_ENVIRONMENT=development or test")
+    connection = step.get("connection")
+    expected_user = step.get("expectedUser")
+    schema = step.get("schema")
+    if any(not isinstance(value, str) or not value for value in (connection, expected_user, schema)):
+        raise RolloutError("explicit SQL-script target is incomplete")
+    if environment != "prod" and looks_like_production_identity(connection, schema):
+        raise RolloutError("SQL-script target looks like production but --env is not prod")
+    target = Target(environment, connection, expected_user, schema, classification)
+    return {
+        "environment": target.environment,
+        "connection": target.connection,
+        "expectedUser": target.expected_user,
+        "schema": target.schema,
+        "classification": target.classification,
+    }
 
 
 def _execute_app_deploy(

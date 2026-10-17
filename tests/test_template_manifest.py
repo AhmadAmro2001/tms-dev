@@ -98,6 +98,22 @@ class TemplateManifestTests(unittest.TestCase):
         self.assertIn("docs/apex-26.1-qualification.md", self.manifest["templateOnly"])
         self.assertIn("docs/superpowers/**", self.manifest["templateOnly"])
 
+    def test_dev_test_docs_are_template_owned_and_project_suites_are_protected(self) -> None:
+        for path in (
+            "docs/dev-test.md",
+            "docs/dev-test-examples/example.json",
+            "docs/dev-test-examples/sql/create-and-seed.sql",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.classify(path), ["templateOwned"])
+        for path in (
+            "dev-tests/suites/orders.json",
+            "dev-tests/suites/sql/create-orders.sql",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(protected_project_path(path))
+                self.assertEqual(self.classify(path), [])
+
     def test_default_upstream_is_26_1_repository(self) -> None:
         self.assertEqual(
             self.manifest["upstream"],

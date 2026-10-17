@@ -38,6 +38,7 @@ project-specific tests and the operational scripts, `.env`, manifest and lock.
 | Two ways to work | **Builder-first** (change it in APEX, export it) or **file-first** (edit the files, publish them). |
 | Safe publish | Refuses to overwrite newer Builder work, stamps who published and when, then re-exports the app and checks it byte for byte against your files. |
 | SQL migrations | Dated folders of numbered SQL plus `checks.json`; a live check for conflicts before applying; a verified receipt after. |
+| DEV test runner | Read-only planning and explicit schema-owner fixture runs with durable reports and retained results; see [DEV test runner](docs/dev-test.md). |
 | Environment baselines | Read-only capture and granular or optionally bundled structure, grant and exact-source migration generation, with separate optional reference data. |
 | Schema comparison | Read-only comparison of selected tables, views and code between DEV, staging and production. |
 | Several schemas per workspace | Comma-separated lists in `.env` and `--schema`; apps, database copies and migrations are kept per schema. |
@@ -641,6 +642,9 @@ restore those backups before retrying the upgrade.
 | Command | Purpose |
 | --- | --- |
 | `scripts/team.sh doctor` | Validate `.env` and check the DEV SQLcl identity. |
+| `scripts/team.sh dev-test --env dev --schema NAME --plan\|--run` | Plan or run the six built-in DEV checks, or an explicitly selected project suite; fixtures are retained by default. See [DEV test runner](docs/dev-test.md). |
+| `scripts/team.sh dev-test --report <run-id> [--format text\|json\|markdown]` | Render saved evidence without connecting to a database. |
+| `scripts/team.sh dev-test --cleanup <run-id>` | Explicitly clean supported recorded artifacts; project suites without a cleanup contract remain manual. |
 | `scripts/team.sh export <id>` | Export one numeric app from shared DEV Builder. |
 | `scripts/team.sh publish <id> --env dev` | Drift-check and import one app to DEV. |
 | `scripts/team.sh check-conflicts <folder> [...] --env <env>` | Preflight selected migrations against a live schema. |

@@ -14,6 +14,8 @@ Commands:
                                               Preflight selected migrations against local/live scope
   migration-plan [<folder> ...] [--live --env <env>] [--schema NAME] [--format text|json|markdown]
                                               Inventory migrations or run a guarded read-only preflight
+  dev-test [--plan|--run|--report RUN_ID|--cleanup RUN_ID] [--env dev] [--schema NAME]
+                                              Plan/run retained DEV fixtures or report/clean one saved run
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
@@ -45,7 +47,7 @@ Commands:
   upgrade-template [--source <url|path>] [--ref <ref>] [--dry-run]
                                               Update template-owned files from the template
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template and migration-plan)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, migration-plan and dev-test)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -64,7 +66,7 @@ command_name="$1"
 shift
 # --schema NAME is the one selection channel: strip it and export PROJECT_SCHEMA
 # so every child script's loader narrows to that schema.
-if [ "$command_name" != upgrade-template ] && [ "$command_name" != migration-plan ]; then
+if [ "$command_name" != upgrade-template ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ]; then
   schema_filtered=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -232,6 +234,10 @@ case "$command_name" in
     esac
     cd "$REPO_ROOT"
     exec python3 -m scripts.migration_plan --repo-root "$migration_plan_root" "$@"
+    ;;
+  dev-test)
+    cd "$REPO_ROOT"
+    exec "$REPO_ROOT/scripts/dev_test.sh" "$@"
     ;;
   migrate)
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh migrate <migration-folder> [...] --env dev|staging|prod [--rehearse] [--report <file>]"

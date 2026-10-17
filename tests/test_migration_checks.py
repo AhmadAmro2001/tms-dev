@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from fake_sqlcl import environment as fake_environment, install
 from scripts.db_targets import Target
-from scripts.migration_manifest import QueryCheck, load_batch
+from scripts.migration_manifest import MigrationManifestError, QueryCheck, load_batch
 from scripts.schema_catalog import ObjectDefinition, ObjectKey, SchemaSnapshot, parse_inventory, parse_snapshot
 from scripts.migration_checks import CheckReport, analyze_batch, compiled_units, preflight, preflight_inventory_retries, run_checks
 import _no_real_sqlcl  # noqa: F401  (keeps tests away from a real SQLcl)
@@ -993,6 +993,29 @@ class MigrationChecksTests(unittest.TestCase):
         self.assertIn("EXIT SUCCESS ROLLBACK", observed["driver"])
         self.assertNotIn(check.sql, observed["driver"])
         self.assertIn("DBMS_SQL.BIND_VARIABLE(l_cursor, ':target_schema', 'APP')", observed["driver"])
+
+    def test_check_driver_keeps_default_bind_scope_and_supports_explicit_devtest_values(self):
+        from scripts.migration_checks import _render_check_driver
+
+        target = Target("dev", "dev-profile", "APP", "APP", "development")
+        with self.assertRaisesRegex(MigrationManifestError, "target_schema"):
+            _render_check_driver(
+                target,
+                (QueryCheck("one", "SELECT 1 FROM dual WHERE :DEVTEST_N = 1", 1),),
+                "preconditions",
+            )
+
+        binding = "مرحبا 😀'"
+        query = "SELECT CASE WHEN :DEVTEST_N = 7 AND :DEVTEST_TEXT IS NOT NULL THEN 1 ELSE 0 END FROM dual"
+        driver = _render_check_driver(
+            target,
+            (QueryCheck("one", query, 1),),
+            "preconditions",
+            bindings={"DEVTEST_N": 7, "DEVTEST_TEXT": binding},
+        )
+        self.assertIn("DBMS_SQL.BIND_VARIABLE(l_cursor, ':DEVTEST_N', 7);", driver)
+        self.assertIn(binding.encode("utf-8").hex().upper(), driver)
+        self.assertNotIn(binding, driver)
 
     def test_check_driver_counts_clob_amounts_in_utf16_units(self):
         # A supplementary character is one character for LENGTH but two code units for a

@@ -10,11 +10,12 @@ import re
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from .db_targets import Target
+from .dev_test_bindings import validate_bindings
 from .path_utils import relative_to_root
 from .migration_manifest import (
     CHECK_ID_RE,
@@ -762,15 +763,27 @@ def compiled_units(migration: Migration, target_schema: str) -> tuple[tuple[str,
     return tuple((*key, required) for key, required in units.items())
 
 
-def _check_bind_target(sql: str) -> bool:
+def _check_binds(sql: str, allowed_bind_names: Iterable[str] | None = None) -> list[str]:
     tokens = _strip_sql_comments_and_tokenize(sql)
-    binds = []
+    allowed_names = {"target_schema"}
+    if allowed_bind_names is not None:
+        allowed_names.update(
+            (name[1:] if name.startswith(":") else name).casefold()
+            for name in allowed_bind_names
+        )
+    binds: list[str] = []
     for index, token in enumerate(tokens):
         if token == ":":
-            if index + 1 >= len(tokens) or tokens[index + 1] != "WORD:target_schema":
-                raise MigrationManifestError("checks may bind only :target_schema")
-            binds.append(index)
-    return bool(binds)
+            if index + 1 >= len(tokens) or not tokens[index + 1].startswith("WORD:"):
+                raise MigrationManifestError("checks may bind only named, declared bindings")
+            name = tokens[index + 1][5:]
+            if name not in allowed_names:
+                if allowed_bind_names is None:
+                    raise MigrationManifestError("checks may bind only :target_schema")
+                raise MigrationManifestError(f"check query contains undeclared binding :{name}")
+            if name not in binds:
+                binds.append(name)
+    return binds
 
 
 def _hex_chunks(text: str) -> list[str]:
@@ -798,11 +811,14 @@ def _render_check_driver(
     exit_on_finish: bool = True,
     configure_session: bool = True,
     fail_on_false: bool = False,
+    bindings: Mapping[str, int | str] | None = None,
 ) -> str:
     if phase not in {"preconditions", "postconditions"}:
         raise ValueError("check phase must be preconditions or postconditions")
     if IDENTIFIER_RE.fullmatch(target.schema) is None:
         raise ValueError("target schema must be an uppercase Oracle identifier")
+    validated_bindings = validate_bindings(bindings) if bindings is not None else None
+    allowed_bind_names = set(validated_bindings) if validated_bindings is not None else None
     sql_lines = [
         "SET ENCODING UTF-8",
         "SET SERVEROUTPUT ON SIZE UNLIMITED",
@@ -854,15 +870,27 @@ def _render_check_driver(
         "  l_payload.put('identity', l_result);",
     ])
     for check in checks:
-        validate_check_query(check.sql)
+        validate_check_query(check.sql, allowed_bind_names=allowed_bind_names)
         if not isinstance(check.id, str) or CHECK_ID_RE.fullmatch(check.id) is None:
             raise MigrationManifestError("check id must use lowercase kebab-case")
-        bind_target = _check_bind_target(check.sql)
+        used_binds = _check_binds(check.sql, allowed_bind_names=allowed_bind_names)
         check_id = check.id
-        bind_statement = (
-            f"DBMS_SQL.BIND_VARIABLE(l_cursor, ':target_schema', '{target.schema}');"
-            if bind_target else "NULL;"
-        )
+        bind_statements: list[str] = []
+        if "target_schema" in used_binds:
+            bind_statements.append(f"DBMS_SQL.BIND_VARIABLE(l_cursor, ':target_schema', '{target.schema}');")
+        if validated_bindings is not None:
+            for bind_name, bind_value in validated_bindings.items():
+                if bind_name.casefold() not in used_binds:
+                    continue
+                if isinstance(bind_value, int):
+                    bind_statements.append(f"DBMS_SQL.BIND_VARIABLE(l_cursor, ':{bind_name}', {bind_value});")
+                else:
+                    value_hex = bind_value.encode("utf-8").hex().upper()
+                    bind_statements.append(
+                        f"DBMS_SQL.BIND_VARIABLE(l_cursor, ':{bind_name}', "
+                        f"UTL_I18N.RAW_TO_CHAR(HEXTORAW('{value_hex}'), 'AL32UTF8'));"
+                    )
+        bind_statement = "\n      ".join(bind_statements) if bind_statements else "NULL;"
         # Manifest IDs are constrained to lowercase kebab-case.
         sql_lines.extend([
             "  l_sql := EMPTY_CLOB();",
@@ -948,6 +976,7 @@ def render_in_session_check_driver(
     phase: str,
     *,
     fail_on_false: bool = False,
+    bindings: Mapping[str, int | str] | None = None,
 ) -> str:
     """Render validated checks that run in the caller's current transaction."""
     return _render_check_driver(
@@ -958,15 +987,23 @@ def render_in_session_check_driver(
         exit_on_finish=False,
         configure_session=False,
         fail_on_false=fail_on_false,
+        bindings=bindings,
     )
 
 
-def _driver_for_checks(run_dir: Path, target: Target, checks: Sequence[QueryCheck], phase: str) -> Path:
+def _driver_for_checks(
+    run_dir: Path,
+    target: Target,
+    checks: Sequence[QueryCheck],
+    phase: str,
+    *,
+    bindings: Mapping[str, int | str] | None = None,
+) -> Path:
     run_dir = Path(run_dir)
     run_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     run_dir.chmod(0o700)
     driver = run_dir / "migration-checks.sql"
-    driver.write_text(_render_check_driver(target, checks, phase), encoding="utf-8", newline="\n")
+    driver.write_text(_render_check_driver(target, checks, phase, bindings=bindings), encoding="utf-8", newline="\n")
     try:
         driver.chmod(0o600)
     except OSError:
@@ -1067,18 +1104,20 @@ def _partition_checks(
     checks: Sequence[QueryCheck],
     phase: str,
     byte_budget: int,
+    *,
+    bindings: Mapping[str, int | str] | None = None,
 ) -> tuple[tuple[QueryCheck, ...], ...]:
     batches: list[tuple[QueryCheck, ...]] = []
     current: list[QueryCheck] = []
     for check in checks:
         candidate = (*current, check)
-        candidate_size = len(_render_check_driver(target, candidate, phase).encode("utf-8"))
+        candidate_size = len(_render_check_driver(target, candidate, phase, bindings=bindings).encode("utf-8"))
         if candidate_size <= byte_budget:
             current.append(check)
             continue
         if current:
             batches.append(tuple(current))
-        single_size = len(_render_check_driver(target, (check,), phase).encode("utf-8"))
+        single_size = len(_render_check_driver(target, (check,), phase, bindings=bindings).encode("utf-8"))
         if single_size > byte_budget:
             raise _CheckDriverTooLarge(check.id, single_size, byte_budget)
         current = [check]
@@ -1094,6 +1133,7 @@ def run_checks(
     *,
     phase: str = "preconditions",
     jobs: int = 1,
+    bindings: Mapping[str, int | str] | None = None,
     _runner: Callable = run_sqlcl,
 ) -> CheckReport:
     """Execute validated SELECT checks under a read-only SQLcl transaction."""
@@ -1118,7 +1158,7 @@ def run_checks(
             "outputAvailable": False, "failedCheckIds": [],
         })
     try:
-        batches = _partition_checks(target, checks, phase, byte_budget)
+        batches = _partition_checks(target, checks, phase, byte_budget, bindings=bindings)
     except _CheckDriverTooLarge as error:
         return CheckReport(False, False, (), ({
             "code": "CHECK_TOO_LARGE", "check": error.check_id,
@@ -1139,7 +1179,7 @@ def run_checks(
         evidence = batch_dir / "sqlcl-output.log"
         attempted = False
         try:
-            driver = _driver_for_checks(batch_dir, target, batch, phase)
+            driver = _driver_for_checks(batch_dir, target, batch, phase, bindings=bindings)
             attempted = True
             result = _runner(target, driver, batch_dir, phase=phase)
             report = _parse_check_output(result.output, batch, phase)

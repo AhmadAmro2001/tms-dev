@@ -267,12 +267,16 @@ def mask_java_quoted_values(source: str) -> str:
     return "".join(characters)
 
 
-def validate_sql_only(source: str) -> None:
-    """Allow terminated SQL statements and PL/SQL blocks, but no SQLcl commands."""
-    statement_spans(source)
+def validate_sql_only(source: str, *, allow_transaction_control: bool = False) -> None:
+    """Allow SQL statements and PL/SQL blocks, but no SQLcl commands.
+
+    Transaction completion stays reserved for migration drivers unless a caller
+    explicitly validates a standalone test/rollout script.
+    """
+    statement_spans(source, allow_transaction_control=allow_transaction_control)
 
 
-def statement_spans(source: str) -> list[tuple[int, int]]:
+def statement_spans(source: str, *, allow_transaction_control: bool = False) -> list[tuple[int, int]]:
     """Validate SQL-only source and return each statement's (start, end) offsets.
 
     The end excludes the ';' or the standalone '/' that terminates it.
@@ -310,7 +314,10 @@ def statement_spans(source: str) -> list[tuple[int, int]]:
         # skip the rest as one block. Judge the source, not the masked text, so
         # a comment glued to the word ('DECLARE/**/') does not count as a gap.
         word_end = first_match.end()
-        if word_end < len(source) and source[word_end] not in " \t\r\n":
+        first = first_match.group().upper()
+        transaction_control = allow_transaction_control and first in {"COMMIT", "ROLLBACK"}
+        transaction_terminator = transaction_control and source[word_end:word_end + 1] == ";"
+        if word_end < len(source) and source[word_end] not in " \t\r\n" and not transaction_terminator:
             raise ValueError(
                 f"SQL-only migration rejects '{source[statement_start:word_end + 1].strip()}' at line "
                 f"{line_at(masked, statement_start)}: SQLcl reads a statement's first word up to the next space, "
@@ -346,6 +353,8 @@ def statement_spans(source: str) -> list[tuple[int, int]]:
         # Name a client command before asking for a semicolon: HOST, DEFINE, START
         # and the like end at the newline, so "add a semicolon" would be wrong.
         allowed = first in SQL_STARTERS
+        if transaction_control:
+            allowed = True
         if first == "SET":
             # Only SET CONSTRAINTS and SET TRANSACTION are SQL; read the second word
             # from this statement, not from the one after a ';'.
@@ -362,6 +371,10 @@ def statement_spans(source: str) -> list[tuple[int, int]]:
                 f"SQL-only migration statement must end with a semicolon at line {line_at(masked, statement_start)}"
             )
         reject_sqlcl_line_hazards(masked, statement_start, statement_end, plsql=False)
+        if transaction_control:
+            transaction_text = masked[index:statement_end].strip()
+            if not re.fullmatch(r"(?:COMMIT|ROLLBACK)(?:\s+WORK)?", transaction_text, re.IGNORECASE | re.ASCII):
+                raise ValueError("SQL-only transaction control accepts only COMMIT or ROLLBACK [WORK]")
         spans.append((statement_start, statement_end))
         index = statement_end + 1
         previous_end = index

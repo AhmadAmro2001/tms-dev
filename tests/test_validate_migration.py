@@ -378,6 +378,15 @@ class ValidateMigrationTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("SQL-only migration", result.stderr)
 
+    def test_transaction_control_is_only_accepted_when_explicitly_enabled(self) -> None:
+        from scripts.validate_migration import statement_spans, validate_sql_only
+
+        source = "INSERT INTO T (ID) VALUES (1);\nCOMMIT;\n"
+        with self.assertRaises(ValueError):
+            validate_sql_only(source)
+        spans = statement_spans(source, allow_transaction_control=True)
+        self.assertEqual(2, len(spans))
+
 
 if __name__ == "__main__":
     unittest.main()

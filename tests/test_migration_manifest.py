@@ -655,6 +655,26 @@ class MigrationManifestTests(unittest.TestCase):
         self.assertEqual(migration.family, "create-customers")
         self.assertEqual(migration.revision, 1)
 
+    def test_check_query_bind_allowlist_is_opt_in_and_keeps_target_schema_default(self) -> None:
+        api = self.require_manifest()
+        api.validate_check_query("SELECT 1 FROM all_tables WHERE owner = :target_schema")
+        with self.assertRaises(api.MigrationManifestError):
+            api.validate_check_query("SELECT 1 FROM dual WHERE :DEVTEST_RUN_ID = 'x'")
+
+        api.validate_check_query(
+            "SELECT 1 FROM dual WHERE :DEVTEST_RUN_ID = 'x'",
+            allowed_bind_names={"DEVTEST_RUN_ID"},
+        )
+        api.validate_check_query(
+            "SELECT 1 FROM all_tables WHERE owner = :target_schema AND table_name = :DEVTEST_TABLE",
+            allowed_bind_names={"DEVTEST_TABLE"},
+        )
+        with self.assertRaises(api.MigrationManifestError):
+            api.validate_check_query(
+                "SELECT 1 FROM dual WHERE :DEVTEST_OTHER = 'x'",
+                allowed_bind_names={"DEVTEST_RUN_ID"},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

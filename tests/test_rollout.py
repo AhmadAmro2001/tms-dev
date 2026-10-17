@@ -13,6 +13,7 @@ import _no_real_sqlcl  # noqa: F401  (keeps tests away from a real SQLcl)
 from fake_sqlcl import environment as fake_environment, install as install_fake_sqlcl
 
 from scripts import rollout
+from scripts.db_targets import Target
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,23 @@ class RolloutManifestTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_observe_target_identity_uses_the_shared_read_only_catalog_path(self) -> None:
+        target = Target("dev", "demo", "DEMO", "DEMO", "development")
+        identity = {
+            "session_user": "DEMO", "current_schema": "DEMO", "db_name": "DEVDB",
+            "db_unique_name": "DEVDB_UNIQUE", "service_name": "dev.service",
+            "container_id": "3", "container_name": "APP_PDB", "edition": "ORA$BASE",
+            "database_version": "19.0",
+        }
+        with patch("scripts.schema_catalog.capture_inventory", return_value=object()) as capture, patch(
+            "scripts.migrate._identity_for_receipt", return_value=identity,
+        ) as validate_identity:
+            observed = rollout._observe_target_identity(target, self.root / "identity")
+
+        self.assertEqual(identity, observed)
+        capture.assert_called_once_with(target, self.root / "identity")
+        validate_identity.assert_called_once()
 
     def write_manifest(self, steps: list[dict], **extra) -> Path:
         value = {"schemaVersion": 1, "steps": steps, **extra}
@@ -310,6 +328,15 @@ class RolloutManifestTests(unittest.TestCase):
             status = rollout.run_rollout(ords_manifest, "dev", repo_root=self.root)
         self.assertEqual(status, 2)
         self.assertFalse(spy_log.exists(), "SQLcl runner must remain uncalled for ords-import when script validation fails")
+
+    def test_sql_script_accepts_multiline_update_set_clause_and_blank_line(self) -> None:
+        source = (
+            'UPDATE "APP"."ORDERS"\n'
+            'SET "STATE" = \'UPDATED\'\n\n'
+            'WHERE "ID" = 1;\n'
+        )
+
+        rollout.validate_sql_script(source, number=1)
 
     def test_rollout_driver_enables_sqlblanklines_before_payload(self) -> None:
         payload_sql = "UPDATE review_table SET flag = 1\n\nWHERE id = 1;\nCOMMIT;\n"
