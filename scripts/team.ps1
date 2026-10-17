@@ -39,6 +39,7 @@ Commands:
   migration-plan [<folder> ...] [--live --env <env>] [--schema NAME] [--format text|json|markdown]
                                               Inventory migrations or run a guarded read-only preflight
   dev-test [--plan|--run|--report RUN_ID|--cleanup RUN_ID] [--env dev] [--schema NAME]
+           [--suite FILE] [--scenario ID ...] [--format text|json|markdown]
                                               Plan/run retained DEV fixtures or report/clean one saved run
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
