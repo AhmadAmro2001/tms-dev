@@ -124,7 +124,8 @@ while IFS= read -r project_env_line || [ -n "$project_env_line" ]; do
     PROD_MIGRATION_SCHEMA|PROD_MIGRATION_SQLCL_CONNECTION|PROD_MIGRATION_EXPECTED_USER|\
     MIGRATION_APPLY_TIMEOUT_SECONDS|MIGRATION_CHECK_TIMEOUT_SECONDS|MIGRATION_CHECK_BATCH_BYTES|\
     MIGRATION_PREFLIGHT_INVENTORY_RETRIES|\
-    DEV_DBA_SQLCL_CONNECTION|STAGING_DBA_SQLCL_CONNECTION|PROD_DBA_SQLCL_CONNECTION) ;;
+    DEV_DBA_SQLCL_CONNECTION|STAGING_DBA_SQLCL_CONNECTION|PROD_DBA_SQLCL_CONNECTION|\
+    DB_MAJOR_VERSION) ;;
     *)
       project_env_fail "unsupported setting in $PROJECT_ENV_FILE: $project_env_key"
       return 1 2>/dev/null || exit 1
@@ -456,6 +457,14 @@ for project_env_dba_key in DEV_DBA_SQLCL_CONNECTION STAGING_DBA_SQLCL_CONNECTION
     export "$project_env_dba_key=$project_env_dba_value"
   fi
 done
+
+if [ "${DB_MAJOR_VERSION+x}" = x ]; then
+  if ! project_env_match "$DB_MAJOR_VERSION" '^[1-9][0-9]$'; then
+    project_env_fail "DB_MAJOR_VERSION must be the two-digit major number the database reports, for example 19 or 23"
+    return 1 2>/dev/null || exit 1
+  fi
+  export DB_MAJOR_VERSION
+fi
 
 # The configured schemas, and whether any list names more than one.
 project_env_union=()

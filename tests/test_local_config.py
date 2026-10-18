@@ -344,6 +344,22 @@ class LocalConfigTests(unittest.TestCase):
                     read_project_env(self.write_env(VALID_BASE_CONFIG + f"DEV_DBA_SQLCL_CONNECTION={invalid}\n"))
                 self.assertIn("DEV_DBA_SQLCL_CONNECTION contains unsupported characters", str(ctx.exception))
 
+    def test_db_major_version_accepts_two_digit_majors(self) -> None:
+        for value in ("19", "23", "12"):
+            with self.subTest(value=value):
+                values = read_project_env(self.write_env(VALID_BASE_CONFIG + f"DB_MAJOR_VERSION={value}\n"))
+                self.assertEqual(values["DB_MAJOR_VERSION"], value)
+
+    def test_db_major_version_is_optional(self) -> None:
+        self.assertNotIn("DB_MAJOR_VERSION", read_project_env(self.write_env(VALID_BASE_CONFIG)))
+
+    def test_db_major_version_rejects_anything_but_a_two_digit_major(self) -> None:
+        for bad_val in ("", "   ", "1", "0", "019", "123", "19c", "19.25", "23ai", "26ai", "19,23", "-19"):
+            with self.subTest(bad_val=bad_val):
+                with self.assertRaises(ConfigError) as ctx:
+                    read_project_env(self.write_env(VALID_BASE_CONFIG + f"DB_MAJOR_VERSION={bad_val}\n"))
+                self.assertIn("DB_MAJOR_VERSION must be the two-digit major number", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -236,7 +236,7 @@ try {
             -TranscriptFile $transcriptFile -Arguments @(
             "-S", "-noupdates", "-name", $Connection,
             "@$(Join-Path $PSScriptRoot $DoctorScript)",
-            $SchemaName, $env:DB_ENVIRONMENT, $ExpectedUser
+            $SchemaName, $env:DB_ENVIRONMENT, $ExpectedUser, $(if ($env:DB_MAJOR_VERSION) { $env:DB_MAJOR_VERSION } else { "none" })
           )
           $output = [System.IO.File]::ReadAllText($transcriptFile)
           # Write-Host, not Write-Output: this function returns a status, and anything

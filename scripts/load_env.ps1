@@ -61,7 +61,8 @@ $projectEnvAllowed = @(
   "ORDS_SCHEMA", "ORDS_SQLCL_CONNECTION", "ORDS_EXPECTED_USER",
   "MIGRATION_APPLY_TIMEOUT_SECONDS", "MIGRATION_CHECK_TIMEOUT_SECONDS", "MIGRATION_CHECK_BATCH_BYTES",
   "MIGRATION_PREFLIGHT_INVENTORY_RETRIES",
-  "DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION"
+  "DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_CONNECTION", "PROD_DBA_SQLCL_CONNECTION",
+  "DB_MAJOR_VERSION"
 )
 foreach ($projectEnvMigrationPrefix in @("", "STAGING_", "PROD_")) {
   foreach ($projectEnvSuffix in @("SCHEMA", "SQLCL_CONNECTION", "EXPECTED_USER")) {
@@ -293,6 +294,13 @@ foreach ($projectEnvDbaKey in @("DEV_DBA_SQLCL_CONNECTION", "STAGING_DBA_SQLCL_C
     if ($projectEnvDbaVal -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
       throw "project environment error: $projectEnvDbaKey contains unsupported characters"
     }
+  }
+}
+
+if (Test-Path -LiteralPath "Env:DB_MAJOR_VERSION") {
+  $projectEnvDbMajor = (Get-Item -LiteralPath "Env:DB_MAJOR_VERSION").Value
+  if ($projectEnvDbMajor -cnotmatch '^[1-9][0-9]$') {
+    throw "project environment error: DB_MAJOR_VERSION must be the two-digit major number the database reports, for example 19 or 23"
   }
 }
 

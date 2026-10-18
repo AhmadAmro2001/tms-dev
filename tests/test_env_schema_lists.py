@@ -221,6 +221,43 @@ class BashEnvironmentListTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("ambient-dev-dba\n", result.stdout)
 
+    def test_db_major_version_loads_from_file_and_overrides_ambient(self) -> None:
+        env_path = write_env(self.directory, {}, "\nDB_MAJOR_VERSION=23\n")
+        env = os.environ.copy()
+        env["DB_MAJOR_VERSION"] = "19"
+        result = subprocess.run(
+            [BASH, "-c", 'set -e; source "$1" "$2"; printf "%s\\n" "$DB_MAJOR_VERSION"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("23\n", result.stdout)
+
+    def test_db_major_version_stays_unset_when_not_configured(self) -> None:
+        env_path = write_env(self.directory, {})
+        env = {key: value for key, value in os.environ.items() if key != "DB_MAJOR_VERSION"}
+        result = subprocess.run(
+            [BASH, "-c", 'set -e; source "$1" "$2"; printf "[%s]\\n" "${DB_MAJOR_VERSION-unset}"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("[unset]\n", result.stdout)
+
+    def test_db_major_version_refusals(self) -> None:
+        for bad_val in ("", "1", "019", "19c", "19.25", "26ai"):
+            with self.subTest(file_value=bad_val):
+                result = load(write_env(self.directory, {}, f"\nDB_MAJOR_VERSION={bad_val}\n"))
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("DB_MAJOR_VERSION must be the two-digit major number", result.stderr)
+        env_path = write_env(self.directory, {})
+        env = os.environ.copy()
+        env["DB_MAJOR_VERSION"] = "19c"
+        result = subprocess.run(
+            [BASH, "-c", 'source "$1" "$2"', "bash", str(ROOT / "scripts" / "load_env.sh"), str(env_path)],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("DB_MAJOR_VERSION must be the two-digit major number", result.stderr)
+
     def test_dba_sqlcl_connection_refusals(self) -> None:
         # File blank
         env_path = write_env(self.directory, {}, "\nDEV_DBA_SQLCL_CONNECTION=\n")
