@@ -113,7 +113,7 @@ Collect values in this order:
    target. Enabling the toggle does not approve downloading a missing CLI; the
    `install-uc-apx` skill asks before installing it.
 
-9. Optional workflow packs: `none` (default), `superpowers`, `mattpocock`, or
+10. Optional workflow packs: `none` (default), `superpowers`, `mattpocock`, or
    `both`. If both, ask which primary workflow to use (default `superpowers`).
    Preserve an existing `.agent-skills.json` selection unless the user chooses
    to change it. Explain that user-level skills and app plugins are separate.
