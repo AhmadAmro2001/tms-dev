@@ -214,7 +214,13 @@ def sha256_pair(path: Path) -> tuple[str, str] | None:
 def fetch_template(source: str, ref: str | None, destination: Path) -> str:
     run_git(destination.parent, "clone", "--quiet", source, str(destination))
     if ref:
-        run_git(destination, "checkout", "--quiet", "--detach", ref)
+        try:
+            resolved = run_git(destination, "rev-parse", "--verify", "--end-of-options", ref + "^{commit}").strip()
+        except UpgradeError:
+            remote_ref = ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else ref
+            resolved = run_git(destination, "rev-parse", "--verify", "--end-of-options",
+                               "refs/remotes/origin/" + remote_ref + "^{commit}").strip()
+        run_git(destination, "checkout", "--quiet", "--detach", resolved)
     return run_git(destination, "rev-parse", "HEAD").strip()
 
 
@@ -346,9 +352,12 @@ def _validated_lock(lock: object) -> dict:
         validate_relative_path(path_text)
         if not isinstance(digest, str) or not HASH_RE.fullmatch(digest):
             raise UpgradeError(f"{LOCK_NAME} has an invalid hash for {path_text}")
-    for key in ("upstream", "commit"):
+    for key in ("upstream", "commit", "templateRef"):
         if key in lock and not isinstance(lock[key], str):
             raise UpgradeError(f"{LOCK_NAME} has an invalid {key}")
+    if "templateRef" in lock and (not lock["templateRef"] or lock["templateRef"].startswith("-")
+                                  or any(ord(c) < 32 or ord(c) == 127 for c in lock["templateRef"])):
+        raise UpgradeError(f"{LOCK_NAME} has an invalid templateRef")
     return lock
 
 
@@ -453,13 +462,16 @@ def plan_upgrade(
     return actions, new_lock
 
 
-def _lock_bytes(upstream: str, commit: str, files: dict[str, str]) -> bytes:
+def _lock_bytes(upstream: str, commit: str, files: dict[str, str], template_ref: str | None = None) -> bytes:
     payload = {
         "schemaVersion": 1,
         "upstream": upstream,
         "commit": commit,
         "files": dict(sorted(files.items())),
     }
+    if template_ref is not None:
+        payload["templateRef"] = template_ref
+    _validated_lock(payload)
     return (json.dumps(payload, indent=2) + "\n").encode("utf-8")
 
 
@@ -501,6 +513,7 @@ def apply_actions(
     files: dict[str, str],
     *,
     lock_hash: str | None = "",
+    template_ref: str | None = None,
 ) -> None:
     """Stage every write and roll back completed filesystem operations on failure.
 
@@ -532,7 +545,7 @@ def apply_actions(
             deletes.add(action.path)
             if action.local != "":
                 planned_local[action.path] = action.local
-    writes[LOCK_NAME] = (_lock_bytes(upstream, commit, files), 0o644)
+    writes[LOCK_NAME] = (_lock_bytes(upstream, commit, files, template_ref), 0o644)
     if lock_hash != "":
         planned_local[LOCK_NAME] = lock_hash
 
@@ -673,7 +686,7 @@ def main(argv: list[str] | None = None) -> int:
         "--source",
         help="template Git URL or local path (default: upstream recorded in the lock or manifest)",
     )
-    parser.add_argument("--ref", help="template branch, tag, or commit (default: the source's default branch)")
+    parser.add_argument("--ref", help="template branch, tag, or commit (default: recorded templateRef, then the source's default branch)")
     parser.add_argument("--dry-run", action="store_true", help="print the plan without changing files")
     args = parser.parse_args(argv)
 
@@ -687,9 +700,24 @@ def main(argv: list[str] | None = None) -> int:
         if not source:
             raise UpgradeError("no template source recorded in lock or manifest; pass --source <template Git URL or path>")
         source = _normalize_source(source)
+        if lock_hash is not None and "templateRef" not in lock and not args.ref:
+            if not args.dry_run:
+                raise UpgradeError("legacy template lock is missing templateRef; pass --ref to choose an explicit template ref before applying")
+            print("notice: legacy template lock is missing templateRef; pass --ref before applying", file=sys.stderr)
         with tempfile.TemporaryDirectory(prefix="apex-template-") as temporary:
             template_root = Path(temporary) / "template"
-            commit = fetch_template(source, args.ref, template_root)
+            chosen_ref = args.ref or lock.get("templateRef")
+            if chosen_ref and (chosen_ref.startswith("-") or any(ord(c) < 32 or ord(c) == 127 for c in chosen_ref)):
+                raise UpgradeError("template ref must not begin with '-' or contain control characters")
+            commit = fetch_template(source, chosen_ref, template_root)
+            if not chosen_ref:
+                try:
+                    origin_head = run_git(template_root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+                    chosen_ref = origin_head[len("origin/"):] if origin_head.startswith("origin/") else origin_head
+                except UpgradeError:
+                    chosen_ref = run_git(template_root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+                if not chosen_ref or chosen_ref == "HEAD":
+                    raise UpgradeError("could not determine template default branch; pass --ref to choose an explicit template ref")
             manifest = load_manifest(template_root)
             template_owned, placeholders = classify(template_root, manifest)
             validate_lock_ownership(lock, manifest)
@@ -697,7 +725,7 @@ def main(argv: list[str] | None = None) -> int:
             for action in actions:
                 print(f"{action.kind} {action.path}")
             if not args.dry_run:
-                apply_actions(project_root, template_root, actions, source, commit, new_lock, lock_hash=lock_hash)
+                apply_actions(project_root, template_root, actions, source, commit, new_lock, lock_hash=lock_hash, template_ref=chosen_ref)
     except UpgradeError as exc:
         print(f"template upgrade error: {exc}", file=sys.stderr)
         return 2

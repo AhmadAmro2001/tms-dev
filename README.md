@@ -562,7 +562,10 @@ changed, the upgrade keeps your file, writes the new template version beside
 it as `<file>.template-new`, and exits with status 1: merge the two, delete the
 `.template-new` file, and commit. The next upgrade refuses to run while any
 `.template-new` file remains. The upgrade records the installed template commit
-in `.template-lock.json`; commit it with the upgraded files. Use `--ref <tag>`
+and selected `templateRef` in `.template-lock.json`; commit it with the upgraded
+files. Future upgrades and update notices use that recorded branch or tag. Legacy
+locks without `templateRef` stay silent during update checks and require an explicit
+`--ref <branch-or-tag>` before applying an upgrade. Use `--ref <tag>`
 to install a specific template version and `--source <url>` for a fork. If the
 upgrade reports that `.env` needs attention, compare it with `.env.example`.
 A differing `.env.example` on the first upgrade also leaves an
