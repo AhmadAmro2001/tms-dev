@@ -834,6 +834,59 @@ class UpgradeTemplateTests(unittest.TestCase):
         self.assertEqual(self.read("scripts/tool.sh"), "echo v1\n")
         self.assertEqual(git(self.project, "status", "--porcelain"), "")
 
+    def test_generated_lock_persists_branch_and_notice_matches_upgrade_preview(self) -> None:
+        git(self.template, "branch", "release-26.1")
+        self.release_v2({"AGENTS.md": "main rules\n"})
+        installed = self.upgrade("--ref", "release-26.1")
+        self.assertEqual(0, installed.returncode, installed.stderr)
+        lock = json.loads((self.project / ".template-lock.json").read_text())
+        self.assertEqual("release-26.1", lock.get("templateRef"))
+        commit_all(self.project, "install release")
+        git(self.template, "checkout", "-q", "release-26.1")
+        self.release_v2({"AGENTS.md": "release rules\n"})
+        expected = git(self.template, "rev-parse", "HEAD")
+        notice = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/check_template_update.py"), "--repo-root", str(self.project)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(0, notice.returncode, notice.stderr)
+        self.assertIn(expected[:7], notice.stdout)
+        preview = self.upgrade_without_source("--dry-run")
+        self.assertEqual(0, preview.returncode, preview.stderr)
+        self.assertIn("Template " + expected, preview.stdout)
+        self.assertEqual("rules v1\n", (self.project / "AGENTS.md").read_text())
+        applied = self.upgrade_without_source()
+        self.assertEqual(0, applied.returncode, applied.stderr)
+        self.assertEqual("release rules\n", (self.project / "AGENTS.md").read_text())
+        self.assertEqual("release-26.1", json.loads((self.project / ".template-lock.json").read_text())["templateRef"])
+
+    def test_generated_lock_records_default_branch_and_legacy_apply_needs_explicit_ref(self) -> None:
+        result = self.upgrade()
+        self.assertEqual(0, result.returncode, result.stderr)
+        path = self.project / ".template-lock.json"
+        lock = json.loads(path.read_text())
+        self.assertEqual("main", lock.get("templateRef"))
+        del lock["templateRef"]
+        path.write_text(json.dumps(lock), encoding="utf-8")
+        commit_all(self.project, "legacy lock")
+        result = self.upgrade()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("pass --ref", result.stderr)
+        result = self.upgrade("--ref", "main")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("main", json.loads(path.read_text())["templateRef"])
+
+    def test_qualified_non_default_branch_resolves_to_its_commit(self) -> None:
+        from scripts.upgrade_template import UpgradeError, fetch_template
+        git(self.template, "branch", "qualified-release")
+        expected = git(self.template, "rev-parse", "qualified-release")
+        try:
+            observed = fetch_template(str(self.template), "refs/heads/qualified-release",
+                                      Path(self.temporary.name) / "selected-template")
+        except UpgradeError as exc:
+            self.fail(str(exc))
+        self.assertEqual(expected, observed)
+
     def test_ref_selects_the_template_version(self) -> None:
         v1 = git(self.template, "rev-parse", "HEAD")
         self.release_v2({"scripts/tool.sh": "echo v2\n"})

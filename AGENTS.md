@@ -132,7 +132,23 @@ is gated on `graphify-out/graph.json` existing. Install it with
 The corpus is a domain allowlist of `apps/`, `database/`, and `app_context/`.
 Graphify links cross-schema references and mirrored synonyms when their targets
 are present in the database mirror. The graph reflects this repository's
-files, not shared Builder state.
+files, not shared Builder state. When the graph exists, each new conversation
+starts a background `graphify update .` (see the graphify rules for its
+guards); it is skipped when Graphify is absent.
+
+## Template update check
+
+At the start of every new conversation, run once in the background:
+`python3 scripts/check_template_update.py`. This read-only check compares the
+lock's `commit` with its recorded `templateRef` (branch or tag), using a portable
+10-second timeout on each Git call. It does not fetch objects into the project.
+
+- Stay silent when the lock/ref is missing or invalid, a commit is pinned,
+  the ref is ambiguous, the network/Git is unavailable, or the commits match.
+- If the command prints an update notice, include it once in the first reply,
+  or the next progress update if the background result arrives later. Do not
+  delay the reply while waiting for it.
+- Never run the upgrade or commit on your own initiative; the developer decides.
 
 ## Project instructions
 
