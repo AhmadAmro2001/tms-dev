@@ -76,7 +76,7 @@ class DoctorCliTests(unittest.TestCase):
             "cat > /dev/null\n"
             "printf '%s|%s|%s\\n' \"$4\" \"$6\" \"$8\" >> \"$FAKE_SQL_CALLS\"\n"
             "if [[ \"${FAKE_FAIL_CONNECTION:-}\" == \"$4\" ]]; then printf 'ORA-01017: invalid credentials\\n'; exit 1; fi\n"
-            "printf 'APEX_DOCTOR_VERIFIED:%s\\n' \"$8\"\n",
+            "printf 'DATABASE_VERSION_VERIFIED:23.26.0.0.0:23.0.0\\nAPEX_DOCTOR_VERIFIED:%s\\n' \"$8\"\n",
             encoding="utf-8",
         )
         fake_sql.chmod(0o755)

@@ -58,7 +58,6 @@ ALLOWED_KEYS = frozenset({
     "DEV_DBA_SQLCL_CONNECTION",
     "STAGING_DBA_SQLCL_CONNECTION",
     "PROD_DBA_SQLCL_CONNECTION",
-    "DB_MAJOR_VERSION",
 }) | frozenset(prefix + "MIGRATION_" + suffix
                for prefix in ("", "STAGING_", "PROD_")
                for suffix in ("SCHEMA", "SQLCL_CONNECTION", "EXPECTED_USER"))
@@ -84,7 +83,6 @@ REQUIRED_KEYS = (
 RE_LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 RE_IDENTIFIER = re.compile(r"^[A-Z][A-Z0-9_$#]{0,127}$")
 RE_ALIAS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-RE_DB_MAJOR_VERSION = re.compile(r"^[1-9][0-9]$")
 RE_PREFIX_LIST = re.compile(r"^[A-Z][A-Z0-9_$#]*(,[A-Z][A-Z0-9_$#]*)*$")
 RE_APP_ID_LIST = re.compile(r"^[1-9][0-9]{0,17}(,[1-9][0-9]{0,17})*$")
 RE_DEVELOPER_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,29}$")
@@ -320,8 +318,5 @@ def read_project_env(path: Path) -> dict[str, str]:
                 raise ConfigError(f"{dba_key} must not be empty")
             if not RE_ALIAS.fullmatch(values[dba_key]):
                 raise ConfigError(f"{dba_key} contains unsupported characters")
-
-    if "DB_MAJOR_VERSION" in seen_keys and not RE_DB_MAJOR_VERSION.fullmatch(values["DB_MAJOR_VERSION"]):
-        raise ConfigError("DB_MAJOR_VERSION must be the two-digit major number the database reports, for example 19 or 23")
 
     return values
