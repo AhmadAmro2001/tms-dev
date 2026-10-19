@@ -47,6 +47,8 @@ Commands:
   revise --check <folder>                     Report whether local attempt/receipt evidence locks a folder
   verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed]
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
+  query --env <env> --connection <profile> [--file <path> | SQL]
+                                              Run one bounded, conservative SELECT read-only
   rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]
                                               Confirm and execute a frozen deployment manifest
   compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown]
@@ -74,8 +76,10 @@ Commands:
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
                                               Set up optional repository workflow packs
   skills status [--format text|json]          Inspect repository workflow packs offline
+  template-status [--format text|json] [--upstream --ref <ref>]
+                                              Inspect local template drift; fetch upstream only when requested
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template, migration-plan, dev-test and skills)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, template-status, migration-plan, dev-test and skills)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -199,7 +203,7 @@ if ([string]::IsNullOrWhiteSpace($Command) -or $Command -in @("--help", "-h")) {
 
 # --schema NAME is the one selection channel: strip it and set PROJECT_SCHEMA so
 # every child script's loader narrows to that schema.
-if ($Command -notin @("upgrade-template", "migration-plan", "dev-test", "skills")) {
+if ($Command -notin @("upgrade-template", "template-status", "migration-plan", "dev-test", "skills")) {
   $schemaFiltered = @()
   for ($index = 0; $index -lt $Arguments.Count; $index++) {
     if ($Arguments[$index] -eq "--schema") {
@@ -378,6 +382,10 @@ try {
       }
       Invoke-TeamBash -ScriptName "migrate.sh" -ScriptArguments $migrateArguments
     }
+    "query" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 query --env dev|staging|prod --connection tables|code|apex|ords [--file <path> | SQL]" }
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("query") + @($Arguments))
+    }
     "revise" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 revise <folder> [--reason TEXT] | revise --check <folder>" }
       $revisionArguments = @($Arguments)
@@ -461,6 +469,14 @@ try {
       if ($null -eq $python) { Fail "Python 3.10 or newer is required to set up workflow skills" }
       $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
       & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "workflow_skills.py") --repo-root $repoRoot @Arguments
+      Exit-Team $LASTEXITCODE
+    }
+    "template-status" {
+      . (Join-Path $PSScriptRoot "resolve_python.ps1")
+      $python = Resolve-TeamPython
+      if ($null -eq $python) { Fail "Python 3.10 or newer is required to inspect template status" }
+      $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+      & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "template_drift.py") --repo-root $repoRoot @Arguments
       Exit-Team $LASTEXITCODE
     }
     "upgrade-template" {

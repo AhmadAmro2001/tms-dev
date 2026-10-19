@@ -443,6 +443,8 @@ revision folder instead (`...-r002`). Commit the folder.
 | see how two environments differ | `scripts/team.sh compare-schema --from dev --to staging --object <NAME>` |
 | release to staging or production | `scripts/team.sh deploy <app-id> --env staging` |
 | get the latest template scripts | `scripts/team.sh upgrade-template --dry-run` |
+| see local template-file changes | `scripts/team.sh template-status` |
+| look something up in the database, read-only | `scripts/team.sh query --env dev --connection code "SELECT ..."` |
 
 ## Next steps
 

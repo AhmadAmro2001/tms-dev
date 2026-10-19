@@ -783,6 +783,24 @@ class TeamCliTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn("Usage: scripts/team.", result.stdout)
 
+    def test_query_and_template_status_are_wired_into_both_wrappers(self) -> None:
+        entries = [[BASH, str(ROOT / "scripts" / "team.sh")]]
+        pwsh = shutil.which("pwsh")
+        if pwsh:
+            entries.append([pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1")])
+        for command in entries:
+            with self.subTest(entry=command[-1]):
+                help_text = subprocess.run([*command, "--help"], text=True, capture_output=True, check=False, cwd=ROOT).stdout
+                self.assertIn("query --env <env> --connection <profile>", help_text)
+                self.assertIn("template-status [--format text|json]", help_text)
+                status = subprocess.run([*command, "template-status", "--format", "json"], text=True,
+                                        capture_output=True, check=False, cwd=ROOT)
+                self.assertIn(status.returncode, (0, 1), status.stderr)
+                self.assertEqual(json.loads(status.stdout)["schemaVersion"], 1)
+                usage = subprocess.run([*command, "query"], text=True, capture_output=True, check=False, cwd=ROOT)
+                self.assertNotEqual(usage.returncode, 0)
+                self.assertIn("usage: scripts/team.", usage.stderr)
+
     def test_argument_errors_read_and_exit_the_same_in_both_wrappers(self) -> None:
         # An uncaught throw makes PowerShell print an exception block with the
         # script path and line and exit 1; Bash prints one `team error:` line and
