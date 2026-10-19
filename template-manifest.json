@@ -44,7 +44,9 @@
     "template-manifest.json",
     "tests/**",
     "tools/chrome_devtools_client.py",
-    "tools/chrome_mcp_daemon.py"
+    "tools/chrome_mcp_daemon.py",
+    "tools/workflow-skills/**",
+    "docs/workflow-skills.md"
   ],
   "projectOwned": [
     ".agents/rules/project.md",
@@ -54,7 +56,8 @@
     "ai_generate/.gitkeep",
     "apps/.gitkeep",
     "database/.gitkeep",
-    "migrations/.gitkeep"
+    "migrations/.gitkeep",
+    ".agent-skills.json"
   ],
   "templateOnly": [
     "docs/apex-26.1-qualification.md",
