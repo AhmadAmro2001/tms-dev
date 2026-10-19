@@ -30,4 +30,12 @@
   manual output as an executed deployment.
 - Do not claim a live check passed unless it actually ran. Report unavailable
   checks as unknown.
+- For confirmed inherited-template issues, check known limitations, record a
+  sanitized entry in project-owned `TODO.md`, and follow
+  [`docs/template-feedback.md`](../../docs/template-feedback.md). Resolve the
+  repository from the template lock and manifest, never the downstream
+  `origin`; search existing upstream issues/PRs before filing. A focused PR
+  needs current-task authorization for upstream-only commit/push. Queue
+  ambiguous or unsafe reports locally and continue safe work. Never disclose
+  credentials, project source/data, or full logs.
 - Do not commit or push without an explicit instruction. Never silently push.

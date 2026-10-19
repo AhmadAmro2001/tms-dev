@@ -25,6 +25,8 @@ Commands:
   revise --check <folder>                     Report whether local attempt/receipt evidence locks a folder
   verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed]
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
+  query --env <env> --connection <profile> [--file <path> | SQL]
+                                              Run one bounded, conservative SELECT read-only
   rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]
                                               Confirm and execute a frozen deployment manifest
   compare-env --from <env> --to <env> [--section <name>] [...] [--format text|json|markdown]
@@ -52,8 +54,10 @@ Commands:
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
                                               Set up optional repository workflow packs
   skills status [--format text|json]          Inspect repository workflow packs offline
+  template-status [--format text|json] [--upstream --ref <ref>]
+                                              Inspect local template drift; fetch upstream only when requested
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template, migration-plan, dev-test and skills)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, template-status, migration-plan, dev-test and skills)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -61,9 +65,32 @@ Environment:
 USAGE
 }
 
+# No command prints only the everyday commands; --help prints all of them.
+usage_everyday() {
+  cat <<'USAGE'
+Usage: scripts/team.sh <command> [arguments]
+
+Everyday commands:
+  doctor                                  Check .env and the database connections
+  export <app_id>                         Copy a live app from DEV into Git
+  publish <app_id> --env dev              Import your edited app files to DEV
+  check-conflicts <folder> --env dev      Check a migration against the live database
+  migrate <folder> --env dev              Apply a migration
+  revise <folder>                         Start the next revision of an attempted migration
+  backup-db                               Refresh the local database mirror
+  upgrade-template --dry-run              Preview a template upgrade
+
+Run scripts/team.sh --help for every command and option.
+USAGE
+}
+
 fail() { printf 'team error: %s\n' "$*" >&2; exit 2; }
 
-if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ] || [ -z "${1:-}" ]; then
+if [ -z "${1:-}" ]; then
+  usage_everyday
+  exit 0
+fi
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   usage
   exit 0
 fi
@@ -72,7 +99,7 @@ command_name="$1"
 shift
 # --schema NAME is the one selection channel: strip it and export PROJECT_SCHEMA
 # so every child script's loader narrows to that schema.
-if [ "$command_name" != upgrade-template ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ]; then
+if [ "$command_name" != upgrade-template ] && [ "$command_name" != template-status ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ]; then
   schema_filtered=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -263,6 +290,12 @@ case "$command_name" in
     cd "$REPO_ROOT"
     exec python3 -m scripts.new_migration "$@"
     ;;
+  query)
+    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh query --env dev|staging|prod --connection tables|code|apex|ords [--file <path> | SQL]"
+    PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}"
+    cd "$REPO_ROOT"
+    exec python3 -m scripts.read_only_query "$@"
+    ;;
   revise)
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh revise <folder> [--reason TEXT] | revise --check <folder>"
     cd "$REPO_ROOT"
@@ -343,6 +376,19 @@ case "$command_name" in
         ;;
     esac
     exec python3 "$skills_script" --repo-root "$skills_root" "$@"
+    ;;
+  template-status)
+    drift_script="$REPO_ROOT/scripts/template_drift.py"
+    drift_root="$REPO_ROOT"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        if command -v cygpath >/dev/null 2>&1; then
+          drift_script="$(cygpath -m "$drift_script")"
+          drift_root="$(cygpath -m "$REPO_ROOT")"
+        fi
+        ;;
+    esac
+    exec python3 "$drift_script" --repo-root "$drift_root" "$@"
     ;;
   upgrade-template)
     # A native Python cannot open /c/... paths. Git Bash rewrites them for it only when

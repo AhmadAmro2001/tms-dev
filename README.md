@@ -582,6 +582,17 @@ still be created; review tests and GitHub automation after future upgrades.
 If the upgrade is interrupted (Ctrl-C or `kill`), it puts back every file it had
 replaced and says `the project was left as it was`; run it again.
 
+Run `scripts/team.sh template-status` to compare template-owned files with the
+local lock. It never fetches by default. For a read-only upstream comparison,
+pass both `--upstream` and an explicit `--ref`; the command reports the fetched
+commit and file statuses without installing or changing files. A missing lock
+in a downstream project is reported as unknown. A 26.1 lock or manifest without
+`apexRelease` counts as 26.1.
+
+Report a confirmed problem in an inherited template file with a sanitized entry
+in the project-owned `TODO.md`; [the template feedback guide](docs/template-feedback.md)
+says how to check it and route it upstream.
+
 ### Recover an older template lock
 
 An existing 26.1 project may have inherited
@@ -645,6 +656,46 @@ The engine stages updates and restores them if a filesystem operation fails.
 If it reports an incomplete rollback, keep the named recovery directory and
 restore those backups before retrying the upgrade.
 
+## Read-only ad-hoc queries
+
+Use `query` for a one-off inspection without adding a script or migration:
+
+```bash
+scripts/team.sh query --env dev --connection tables --schema DEMO "SELECT table_name FROM user_tables ORDER BY table_name"
+scripts/team.sh query --env dev --connection code --file scratch/query.sql
+```
+
+`--connection` names a configured profile, never an arbitrary SQLcl alias or
+connection string. In DEV, `tables`, `code`, `apex` and `ords` use their own
+aligned schema, SQLcl connection and expected-user settings. In staging or
+production, they use that environment's aligned schema/connection/expected-user
+triple. ORDS is DEV-only. Missing or incomplete settings, an unlisted schema, or
+a multi-schema profile without `--schema` refuses before SQLcl starts.
+
+The input must be one statement beginning with `SELECT` or a SELECT-producing
+`WITH`. The gate handles quoted strings/identifiers and comments, permits only
+a conservative set of built-ins, and refuses DML, DDL, PL/SQL, SQLcl commands,
+remote links, sequence reads, package/member calls and unknown functions.
+SQLcl substitution is disabled; the session changes to the configured schema,
+disables commits in stored procedures, checks login/schema and observed
+database/service identity before the query, starts a read-only transaction,
+and exits with rollback. A production-marked live identity refuses a DEV or
+staging target even when the selected saved connection is named for that
+environment. Results are CSV without headings. Defaults are a
+32 KiB SQL input limit, 60-second timeout, 500-row result limit and 1 MiB
+captured-output limit. Crossing a row or byte cap, timing out, a SQLcl error,
+or incomplete identity/framing refuses the result rather than displaying a
+partial success. The result is withheld on errors.
+
+The read-only transaction and syntax gate reduce risk; they do not provide
+database privilege isolation or prove that every object selected is side-effect
+free. The lexical gate cannot distinguish a bare zero-argument stored function
+from a column reference. Disabling commits in stored procedures blocks their
+database commits, including autonomous-transaction commits, but cannot prevent
+nontransactional external effects. A view, virtual column or other database
+object can hide behavior outside the query text. Use a suitably read-only
+account and review the selected objects.
+
 ## Command reference
 
 `doctor` detects the full database version and `COMPATIBLE` separately for each
@@ -672,6 +723,7 @@ unknown. Version and compatibility do not prove feature privileges or availabili
 | `scripts/team.sh new-migration <name> --source TYPE:NAME [...] --env dev [--schema NAME]` | Start `migrations/<SCHEMA>/<today>_<name>-r001/` from the source live on DEV: one editable step per object, preconditions that refuse the apply if that source changes first, postconditions that each object is VALID. Read-only. |
 | `scripts/team.sh revise <folder> [--reason TEXT]` | Copy a migration to its next revision; the old folder stays unchanged. |
 | `scripts/team.sh revise --check <folder>` | Report whether local receipt or attempt evidence locks a folder; exit 0/1/2 for unlocked/locked/unknown. |
+| `scripts/team.sh query --env <dev\|staging\|prod> --connection <tables\|code\|apex\|ords> [--schema NAME] [--file PATH \| SQL]` | Run one conservative, bounded SELECT in a read-only SQLcl transaction; see [read-only ad-hoc queries](#read-only-ad-hoc-queries). |
 | `scripts/team.sh verify <folder> [...] --env <env> [--phase pre\|post\|both] [--only-failed] [--format text\|json] [--jobs N]` | Evaluate migration checks read-only; false checks return 1 and errors return 2. |
 | `scripts/team.sh rollout <manifest.json> --env <env> [--from-step N] [--dry-run] [--report <file>]` | Run a frozen ordered deployment plan; staging and production use one manifest-wide confirmation. |
 | `scripts/team.sh compare-schema --env <env> --object <name>` | Compare selected live schema objects read-only. |
@@ -685,6 +737,8 @@ unknown. Version and compatibility do not prove feature privileges or availabili
 | `scripts/team.sh backup-ords` | Export ORDS (REST) metadata read-only to `database/<SCHEMA>/ords/schema.sql`. |
 | `scripts/team.sh deploy <id> --env <staging\|prod> [--manual]` | Confirm a promotion or print a DBA runbook. |
 | `scripts/team.sh upgrade-template [--dry-run]` | Update template-owned files; never overwrites project files. |
+| `scripts/team.sh template-status [--format text\|json]` | Compare template-owned files with the local lock; no network access by default. |
+| `scripts/team.sh template-status --upstream --ref <ref>` | Explicitly compare local files with a branch, tag or commit from the manifest's upstream repository. |
 | `scripts/team.sh skills setup none\|superpowers\|mattpocock\|both [--primary superpowers\|mattpocock]` | Set up optional, pinned workflow packs locally. |
 | `scripts/team.sh skills status [--format text\|json]` | Inspect repository-managed packs offline. |
 
