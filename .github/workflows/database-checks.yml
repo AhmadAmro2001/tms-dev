@@ -39,6 +39,8 @@ jobs:
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
       - name: Behavioral tests
+        env:
+          CI_TEST_JOBS: '4'
         run: python3 scripts/ci_run_tests.py
       - name: Validate the example configuration
         run: |
@@ -68,6 +70,8 @@ jobs:
         shell: bash
         run: for script in scripts/*.sh; do bash -n "$script"; done
       - name: Behavioral tests
+        env:
+          CI_TEST_JOBS: '4'
         run: python scripts/ci_run_tests.py
       - name: Validate the example configuration
         shell: bash
