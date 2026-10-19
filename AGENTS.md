@@ -1,7 +1,10 @@
 # Team APEX agent contract
 
 This repository is the APEX 26.1+ / APEXlang team template. The template
-repository follows its normal branch and pull-request process. A project
+repository follows its normal branch and pull-request process: push a
+branch and open a pull request, never push to `main`, and run
+`python3 scripts/pre_push_check.py` first (see
+[docs/ci-checks.md](docs/ci-checks.md)). A project
 created from it gives each developer a separate Git repository; the team
 shares its development Oracle database and APEX workspace, not Git history.
 Never exchange downstream commits or assume a colleague's repository changes
