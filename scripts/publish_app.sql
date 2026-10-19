@@ -1,6 +1,7 @@
 -- Arguments: target parsing schema, target environment, expected session user,
 -- absolute APEXlang source directory, absolute deployment descriptor, app ID,
--- and the live state the Builder drift guard approved ('-' skips that re-check).
+-- the live state the Builder drift guard approved ('-' skips that re-check),
+-- and eight UTF-8 hex identity values captured before the writer session.
 SET DEFINE ON
 DEFINE target_schema = '&1'
 DEFINE db_environment = '&2'
@@ -9,6 +10,14 @@ DEFINE application_source = '&4'
 DEFINE deployment_file = '&5'
 DEFINE expected_app_id = '&6'
 DEFINE expected_live_state = '&7'
+DEFINE expected_db_unique_name = '&8'
+DEFINE expected_service_name = '&9'
+DEFINE expected_container_id = '&10'
+DEFINE expected_container_name = '&11'
+DEFINE expected_edition = '&12'
+DEFINE expected_server_host = '&13'
+DEFINE expected_session_user = '&14'
+DEFINE expected_current_schema = '&15'
 SET ENCODING UTF-8
 SET HEADING OFF
 SET FEEDBACK OFF
@@ -56,6 +65,8 @@ BEGIN
   END IF;
 END;
 /
+
+@@publish_identity_guard.sql &&expected_db_unique_name &&expected_service_name &&expected_container_id &&expected_container_name &&expected_edition &&expected_server_host &&expected_session_user &&expected_current_schema
 
 -- The drift guard ran in an earlier session. Re-read the live revision in this
 -- import session so a Builder save or teammate import since then is refused
