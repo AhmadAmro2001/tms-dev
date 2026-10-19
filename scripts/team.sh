@@ -17,6 +17,8 @@ Commands:
   dev-test [--plan|--run|--report RUN_ID|--cleanup RUN_ID] [--env dev] [--schema NAME]
            [--suite FILE] [--scenario ID ...] [--format text|json|markdown]
                                               Plan/run retained DEV fixtures or report/clean one saved run
+  new-migration <name> --source TYPE:NAME [...] --env dev
+                                              Start a code migration from the live DEV source
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
@@ -252,6 +254,14 @@ case "$command_name" in
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh migrate <migration-folder> [...] --env dev|staging|prod [--rehearse] [--report <file>]"
     PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}" \
       exec "$REPO_ROOT/scripts/migrate.sh" "$@"
+    ;;
+  new-migration)
+    [ "$#" -ge 1 ] || fail "usage: scripts/team.sh new-migration <name> --source TYPE:NAME [...] --env dev [--schema NAME]"
+    PROJECT_ENV_FILE="${PROJECT_ENV_FILE:-$REPO_ROOT/.env}"
+    # shellcheck source=load_env.sh
+    source "$REPO_ROOT/scripts/load_env.sh" "$PROJECT_ENV_FILE"
+    cd "$REPO_ROOT"
+    exec python3 -m scripts.new_migration "$@"
     ;;
   revise)
     [ "$#" -ge 1 ] || fail "usage: scripts/team.sh revise <folder> [--reason TEXT] | revise --check <folder>"
