@@ -753,6 +753,16 @@ class RolloutManifestTests(unittest.TestCase):
             {item["path"] for item in plan[0]["inputHashes"]},
         )
 
+    def test_migration_hashes_ignore_generated_attempt_evidence(self) -> None:
+        folder = self.root / "migrations" / "2026-10-10_release-r001"
+        folder.mkdir(parents=True)
+        source = folder / "001-create-table.sql"
+        source.write_text("CREATE TABLE T (ID NUMBER);\n", encoding="utf-8")
+        generated = folder / "attempt-event.0123456789abcdef.json"
+        generated.write_text("{}\n", encoding="utf-8")
+        paths = rollout._directory_input_paths(folder, self.root, "dev", migration_folder=True)
+        self.assertEqual(paths, [source])
+
     def test_report_path_cannot_overlap_app_deployment_inputs(self) -> None:
         app_dir = self.add_app()
         manifest = self.write_manifest([{"type": "app-deploy", "appId": 100}])

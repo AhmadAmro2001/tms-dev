@@ -456,6 +456,7 @@ class BaselineBuilderUnitTests(unittest.TestCase):
         self.assertIn("CHR(10)", expression)
         self.assertIn("q'!", expression)
         self.assertIn("CHR(13) || CHR(10)", baseline._text_sql_literal("first\r\nsecond"))
+        self.assertIn("CHR(13) || CHR(10)", baseline._check_sql_value("first\r\nsecond", {"name": "VALUE", "data_type": "VARCHAR2"}))
         self.assertEqual(baseline._text_sql_literal(""), "NULL")
 
     def test_reference_dates_are_typed_and_invalid_date_text_stays_text(self) -> None:

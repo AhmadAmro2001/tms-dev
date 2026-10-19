@@ -273,6 +273,7 @@ fi
 
 mkdir -p "$REPO_ROOT/scratch"
 staging_dir="$(mktemp -d "$REPO_ROOT/scratch/apex-publish.XXXXXX")"
+printf '%s\n' '{"schemaVersion":1,"sourceVerified":false,"lifecycleStatus":"unavailable"}' > "$staging_dir/publish-verification.json"
 restore_unstamped=false
 # Set once the import changed the target and cleared after its verification,
 # so a failure in between can say what to do next.
@@ -362,6 +363,30 @@ trap cleanup EXIT
 # The import session re-checks the live state the drift guard approved; '-'
 # skips that re-check for --force and for staging or production.
 expected_live_state="-"
+lifecycle_enabled=false
+identity_values=""
+expected_db_unique_name=-; expected_service_name=-; expected_container_id=-; expected_container_name=-
+expected_edition=-; expected_server_host=-; expected_session_user=-; expected_current_schema=-
+if [ -f "$REPO_ROOT/scripts/application_lifecycle.py" ] && [ -f "$REPO_ROOT/scripts/application_lifecycle.sql" ]; then
+  lifecycle_enabled=true
+  lifecycle_args=(--connection "$sqlcl_connection" --expected-user "$expected_user" --schema "$parsing_schema"
+    --workspace "$workspace_name" --app-id "$app_id" --environment "$app_environment")
+  python3 "$REPO_ROOT/scripts/application_lifecycle.py" capture "${lifecycle_args[@]}" --run-dir "$staging_dir/lifecycle-before" || fail 'pre-publication lifecycle observation is unavailable; nothing imported'
+  identity_values="$(python3 - "$staging_dir/lifecycle-before/lifecycle-snapshot.json" <<'PY'
+import json, sys
+from pathlib import Path
+fields = ('db_unique_name', 'service_name', 'container_id', 'container_name', 'edition', 'server_host', 'session_user', 'current_schema')
+data = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+identity = data.get('identity', {})
+values = [identity.get(field) for field in fields]
+if any(not isinstance(value, str) or not value for value in values):
+    raise SystemExit('pre-publication identity is incomplete')
+print('\t'.join(value.encode('utf-8').hex().upper() for value in values))
+PY
+  )"
+  if [ -z "$identity_values" ]; then fail 'pre-publication database identity is unavailable; nothing imported'; fi
+fi
+IFS=$'\t' read -r expected_db_unique_name expected_service_name expected_container_id expected_container_name expected_edition expected_server_host expected_session_user expected_current_schema <<< "$identity_values"
 if [ "$app_environment" = dev ] && [ "$force" != true ]; then
   drift_guard="$REPO_ROOT/scripts/check_builder_drift.py"
   [ -f "$drift_guard" ] || fail "Builder drift guard is missing; refusing import"
@@ -408,12 +433,18 @@ application_source="$app_dir"
 deployment_file="$app_dir/deployments/$app_environment.json"
 import_running=true
 sqlcl_status=0
+import_args=(
+  -S -noupdates -name "$sqlcl_connection"
+  "@$REPO_ROOT/scripts/publish_app.sql"
+  "$parsing_schema" "$target_environment" "$expected_user"
+  "$application_source" "$deployment_file" "$app_id" "$expected_live_state"
+)
+if [ "$lifecycle_enabled" = true ]; then
+  import_args+=("$expected_db_unique_name" "$expected_service_name" "$expected_container_id" "$expected_container_name" "$expected_edition" "$expected_server_host" "$expected_session_user" "$expected_current_schema")
+fi
 (
   invoke_sqlcl_safe "$staging_dir" \
-    -S -noupdates -name "$sqlcl_connection" \
-    "@$REPO_ROOT/scripts/publish_app.sql" \
-    "$parsing_schema" "$target_environment" "$expected_user" \
-    "$application_source" "$deployment_file" "$app_id" "$expected_live_state" \
+    "${import_args[@]}" \
     < "$sqlcl_stdin"
 ) > "$sqlcl_output" 2>&1 || sqlcl_status=$?
 if [ "$sqlcl_status" -ne 0 ]; then
@@ -443,6 +474,12 @@ fi
 # The stamped source is live now; keep it for the developer to commit.
 restore_unstamped=false
 import_unverified=true
+
+if [ "$lifecycle_enabled" = true ]; then
+  python3 "$REPO_ROOT/scripts/application_lifecycle.py" restore-automations "${lifecycle_args[@]}" \
+    --before "$staging_dir/lifecycle-before/lifecycle-snapshot.json" --run-dir "$staging_dir/automation-restore" || \
+    fail 'automation restoration did not verify; baseline and recovery evidence retained'
+fi
 
 # Re-export from the selected target and compare exact APEXlang bytes before
 # claiming success. In DEV this same stable observation advances the drift
@@ -493,6 +530,12 @@ if [ "$app_environment" = dev ]; then
   verify_args+=(--record-baseline)
 fi
 python3 "$REPO_ROOT/scripts/verify_publish_state.py" "${verify_args[@]}"
+if [ "$lifecycle_enabled" = true ]; then
+  python3 "$REPO_ROOT/scripts/application_lifecycle.py" verify "${lifecycle_args[@]}" \
+    --before "$staging_dir/lifecycle-before/lifecycle-snapshot.json" --run-dir "$staging_dir/lifecycle-after" \
+    --summary-path "$staging_dir/publish-verification.json" || \
+    fail 'application lifecycle verification failed; baseline and recovery evidence retained'
+fi
 import_unverified=false
 printf 'Published APEX App %s to %s (%s / %s).\n' \
   "$app_id" "$target_label" "$workspace_name" "$parsing_schema"

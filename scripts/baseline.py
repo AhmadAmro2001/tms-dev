@@ -907,7 +907,7 @@ def _check_sql_value(value: object, column: Mapping) -> str:
             pieces.append(_sql_literal("".join(current)))
             current = []
         if char == "\r" and value[index + 1 : index + 2] == "\n":
-            pieces.append("CHR(10)")
+            pieces.extend(("CHR(13)", "CHR(10)"))
             index += 2
         else:
             pieces.append("CHR(13)" if char == "\r" else "CHR(10)")
