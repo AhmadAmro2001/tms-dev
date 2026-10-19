@@ -60,6 +60,8 @@ Commands:
   dev-test [--plan|--run|--report RUN_ID|--cleanup RUN_ID] [--env dev] [--schema NAME]
            [--suite FILE] [--scenario ID ...] [--format text|json|markdown]
                                               Plan/run retained DEV fixtures or report/clean one saved run
+  new-migration <name> --source TYPE:NAME [...] --env dev
+                                              Start a code migration from the live DEV source
   migrate <folder> [...] --env dev|staging|prod [--verbose] [--rehearse] [--report <file>]
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
@@ -404,6 +406,10 @@ try {
         }
       }
       Invoke-TeamBash -ScriptName "migrate.sh" -ScriptArguments $migrateArguments
+    }
+    "new-migration" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 new-migration <name> --source TYPE:NAME [...] --env dev [--schema NAME]" }
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("new-migration") + @($Arguments))
     }
     "query" {
       if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 query --env dev|staging|prod --connection tables|code|apex|ords [--file <path> | SQL]" }
