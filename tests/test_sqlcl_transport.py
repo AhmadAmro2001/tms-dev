@@ -1,5 +1,9 @@
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+from scripts.migrate import MigrationApplyError, _preflight_transport
+from scripts.migration_manifest import MigrationFile
 from scripts.sqlcl_transport import generated_clob_assembly, lint_sqlcl_transport
 
 
@@ -16,6 +20,11 @@ class SqlclTransportTests(unittest.TestCase):
 
         self.assertEqual([item.severity for item in findings], ["warning"])
 
+    def test_comment_and_literal_hyphens_are_not_code_findings(self):
+        sql = "-- comment-\nselect 'ordinary-value' from dual; -- trailing-\n"
+
+        self.assertEqual(lint_sqlcl_transport(sql, "direct"), ())
+
     def test_code_trailing_hyphen_and_quoted_blank_line_are_warnings(self):
         code = lint_sqlcl_transport("select 1 -\n  2 from dual;\n", "direct")
         blank = lint_sqlcl_transport("v_text := 'first\n   \nlast';\n", "direct")
@@ -30,6 +39,26 @@ class SqlclTransportTests(unittest.TestCase):
             "DECLARE\n  l_source CLOB := TO_CLOB('x');\nBEGIN\n"
             "  EXECUTE IMMEDIATE l_source;\n  DBMS_LOB.FREETEMPORARY(l_source);\nEND;\n/\n"
         ))
+
+    def test_invalid_mode_refuses_and_malformed_sql_stays_with_primary_validator(self):
+        with self.assertRaises(ValueError):
+            lint_sqlcl_transport("select 1 from dual", "guess")
+
+        self.assertEqual(lint_sqlcl_transport("v_text := 'unterminated", "direct"), ())
+
+    def test_proven_direct_hazard_refuses_before_migration_apply_launch(self):
+        file = MigrationFile(
+            sequence=1,
+            name="001-create-table.sql",
+            path=Path("001-create-table.sql"),
+            source=b"BEGIN\n  v_text := 'value-\nnext';\nEND;\n/\n",
+            sha256="a" * 64,
+        )
+        with patch("scripts.migrate.run_sqlcl") as run_sqlcl:
+            with self.assertRaisesRegex(MigrationApplyError, "SQLcl transport preflight refused"):
+                _preflight_transport((file,), announce=False)
+
+        run_sqlcl.assert_not_called()
 
 
 if __name__ == "__main__":

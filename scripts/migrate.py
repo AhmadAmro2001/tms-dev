@@ -70,6 +70,7 @@ from .schema_catalog import (
 )
 from .schema_normalization import normalization_coverage
 from .sqlcl_session import SqlclError, SqlclTimeout, run_sqlcl, safe_rmtree
+from .sqlcl_transport import generated_clob_assembly, lint_sqlcl_transport
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +94,19 @@ class _FrozenMigration:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _preflight_transport(files: Sequence[MigrationFile], *, announce: bool) -> None:
+    """Refuse known direct-script corruption before recording a write attempt."""
+    for file in files:
+        source = file.source.decode("utf-8")
+        mode = "assembled" if generated_clob_assembly(source) else "direct"
+        for finding in lint_sqlcl_transport(source, mode):
+            message = f"{file.name}:{finding.line} ({finding.code}): {finding.message}"
+            if finding.severity == "error":
+                raise MigrationApplyError(f"SQLcl transport preflight refused: {message}")
+            if announce:
+                print(f"migration warning: SQLcl transport review: {message}", file=sys.stderr)
 
 
 def _safe_scratch_root(repo_root: Path) -> Path:
@@ -709,6 +723,18 @@ def apply_folder(
     driver = run_dir / "migration-driver.sql"
     driver.write_text("\n".join(driver_lines), encoding="utf-8", newline="\n")
     driver.chmod(0o600)
+    _preflight_transport(migration.files, announce=False)
+    for finding in lint_sqlcl_transport(driver.read_text(encoding="utf-8"), "direct"):
+        if finding.severity == "error":
+            raise MigrationApplyError(
+                f"SQLcl transport preflight refused: {driver.name}:{finding.line} "
+                f"({finding.code}): {finding.message}"
+            )
+        print(
+            f"migration warning: SQLcl transport review: {driver.name}:{finding.line} "
+            f"({finding.code}): {finding.message}",
+            file=sys.stderr,
+        )
     started = _utc_now()
     try:
         result = run_sqlcl(target, driver, run_dir, phase="apply")
@@ -989,6 +1015,7 @@ def apply_batch(
                     f"live preflight refused {original.folder.name} at its apply boundary: "
                     + json.dumps(current_preflight.to_dict(), ensure_ascii=False, sort_keys=True)
                 )
+            _preflight_transport(staged.files, announce=True)
             record = _receipt_record(original, {"migrations": records})
             attempt_id = str(uuid.uuid4())
             pending_event = _attempt_event(
