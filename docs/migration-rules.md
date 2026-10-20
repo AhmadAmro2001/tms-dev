@@ -272,6 +272,15 @@ These files are evidence from this checkout; they are not a shared ledger.
 Never create a planned, pending, failed, or aspirational status file, and do
 not treat a receipt by itself as proof of today's live state.
 
+### Evidence of other targets
+
+A folder can hold evidence for several targets (environment and schema). `migrate` first validates every
+attempt-event chain in the folder (`attempt-event.<UUID>.json` sidecars, which Git ignores) and only then
+narrows the decision to the selected target. A malformed or branched chain, or a no-write record whose retained
+SQLcl output is missing, makes the lock `unknown` and the apply refuses, even when the damaged evidence belongs to
+another target. Restore the evidence or continue in the next revision folder with `revise`. The 26.2 template
+scopes this check to the selected target.
+
 ## Conflict checks and the independent-repository limit
 
 Run the conflict checker on the folders you intend to apply:
