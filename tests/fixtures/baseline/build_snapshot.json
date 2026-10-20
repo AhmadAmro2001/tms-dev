@@ -6,3 +6,4 @@
     {"owner": "APP_DEV", "name": "APP_ITEMS_IX_NEW", "type": "INDEX", "raw_ddl": "CREATE INDEX \"APP_DEV\".\"APP_ITEMS_IX_NEW\" ON \"APP_DEV\".\"APP_ITEMS\" (\"ITEM_ID\")", "attributes": {}, "dependents": []}
   ]
 }
+
