@@ -281,16 +281,19 @@ if ($appEnvironment -eq "dev" -and -not $force) {
 
 . (Join-Path $PSScriptRoot "invoke_sqlcl.ps1")
 $stdinFile = [System.IO.Path]::GetTempFileName()
-$transcriptFile = [System.IO.Path]::GetTempFileName()
-$verifyTranscriptFile = [System.IO.Path]::GetTempFileName()
 $publishWorkDir = Join-Path $repoRoot ("scratch/apex-publish-" + [Guid]::NewGuid().ToString("N"))
 [System.IO.Directory]::CreateDirectory($publishWorkDir) | Out-Null
+$transcriptFile = Join-Path $publishWorkDir "sqlcl-output.log"
+$verifyTranscriptFile = Join-Path $publishWorkDir "post-import-sqlcl-output.log"
+$verificationSummary = Join-Path $publishWorkDir "publish-verification.json"
+[System.IO.File]::WriteAllText($verificationSummary, '{"schemaVersion":1,"sourceVerified":false,"lifecycleStatus":"unavailable"}', (New-Object System.Text.UTF8Encoding($false)))
 $applicationSource = Join-Path $appDir "application.apx"
 $unstampedSource = Join-Path $publishWorkDir "application.apx.unstamped"
 $stampedSource = Join-Path $publishWorkDir "application.apx.stamped"
 $stampingSource = Join-Path $publishWorkDir "application.apx.stamping"
 $restoreSource = Join-Path $publishWorkDir "application.apx.restore"
 $restoreUnstamped = $false
+$importAttempted = $false
 # Set once the import changed the target and cleared after its verification,
 # so a failure in between can say what to do next.
 $importUnverified = $false
@@ -400,6 +403,7 @@ try {
   $applicationInput = $appDir
   $deploymentFile = Join-Path $appDir "deployments/$appEnvironment.json"
   $importRunning = $true
+  $importAttempted = $true
   $importArguments = @(
     "-S", "-noupdates", "-name", $sqlclConnection,
     "@$(Join-Path $PSScriptRoot 'publish_app.sql')",
@@ -473,17 +477,24 @@ try {
     (Join-Path $verifyRunDir ".apex-export-after.txt"),
     "--repo-root", $repoRoot
   )
-  if ($appEnvironment -eq "dev") { $verifyArgs += "--record-baseline" }
   & $python.Path @($python.Prefix) @verifyArgs
   if ($LASTEXITCODE -ne 0) {
     throw "post-import APEX source verification failed with exit code $LASTEXITCODE"
   }
+  $summary = Get-Content -LiteralPath $verificationSummary -Raw | ConvertFrom-Json
+  $summary.sourceVerified = $true
+  [System.IO.File]::WriteAllText($verificationSummary, ($summary | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false)))
   if ($lifecycleEnabled) {
     & $lifecyclePython.Path @($lifecyclePython.Prefix) (Join-Path $PSScriptRoot 'application_lifecycle.py') verify @lifecycleArguments `
       --before (Join-Path $publishWorkDir 'lifecycle-before/lifecycle-snapshot.json') --run-dir (Join-Path $publishWorkDir 'lifecycle-after') `
       --summary-path (Join-Path $publishWorkDir 'publish-verification.json')
     if ($LASTEXITCODE -ne 0) { throw 'publish error: application lifecycle verification failed; baseline and recovery evidence retained' }
   }
+  if ($appEnvironment -eq "dev") {
+    & $python.Path @($python.Prefix) @verifyArgs --record-baseline
+    if ($LASTEXITCODE -ne 0) { throw "DEV baseline recording failed with exit code $LASTEXITCODE; recovery evidence retained" }
+  }
+  $importAttempted = $false
   $importUnverified = $false
   Write-Output "Published APEX App $AppId to $targetLabel ($($deployment.workspace.name) / $parsingSchema)."
   if ($publishedVersion) {
@@ -532,7 +543,11 @@ try {
       }
     }
   }
-  Remove-Item -LiteralPath $stdinFile, $transcriptFile, $verifyTranscriptFile -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $stdinFile -Force -ErrorAction SilentlyContinue
+  if ($importAttempted) {
+    $keepPublishWorkDir = $true
+    Write-Warning "publish: unverified import diagnostics retained at $publishWorkDir"
+  }
   if (-not $keepPublishWorkDir -and (Test-Path -LiteralPath $publishWorkDir)) {
     Remove-Item -LiteralPath $publishWorkDir -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $publishWorkDir) {

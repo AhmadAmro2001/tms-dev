@@ -282,6 +282,7 @@ import_unverified=false
 # interrupt in between leaves the import's result unknown (SQLcl may have
 # finished it already).
 import_running=false
+import_attempted=false
 # Replace <target> with <replacement> only while <target> still holds the bytes
 # of <expected>. The target is renamed aside before the comparison and the
 # replacement is installed without overwriting, so an editor save at any
@@ -353,7 +354,9 @@ cleanup() {
       fi
     fi
   done
-  if ! rm -rf -- "$staging_dir" 2>/dev/null; then
+  if [ "$import_attempted" = true ]; then
+    printf 'publish: unverified import diagnostics retained at %s\n' "$staging_dir" >&2
+  elif ! rm -rf -- "$staging_dir" 2>/dev/null; then
     printf 'publish warning: could not remove the temporary directory %s; delete it after closing whatever holds a file in it\n' \
       "${staging_dir#"$REPO_ROOT/"}" >&2
   fi
@@ -432,6 +435,7 @@ fi
 application_source="$app_dir"
 deployment_file="$app_dir/deployments/$app_environment.json"
 import_running=true
+import_attempted=true
 sqlcl_status=0
 import_args=(
   -S -noupdates -name "$sqlcl_connection"
@@ -526,16 +530,25 @@ verify_args=(
   "$verify_run_dir/.apex-export-before.txt" "$verify_run_dir/.apex-export-after.txt"
   --repo-root "$REPO_ROOT"
 )
-if [ "$app_environment" = dev ]; then
-  verify_args+=(--record-baseline)
-fi
 python3 "$REPO_ROOT/scripts/verify_publish_state.py" "${verify_args[@]}"
+python3 - "$staging_dir/publish-verification.json" <<'PY_SUMMARY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+report = json.loads(path.read_text(encoding='utf-8'))
+report['sourceVerified'] = True
+path.write_text(json.dumps(report, sort_keys=True) + '\n', encoding='utf-8')
+PY_SUMMARY
 if [ "$lifecycle_enabled" = true ]; then
   python3 "$REPO_ROOT/scripts/application_lifecycle.py" verify "${lifecycle_args[@]}" \
     --before "$staging_dir/lifecycle-before/lifecycle-snapshot.json" --run-dir "$staging_dir/lifecycle-after" \
     --summary-path "$staging_dir/publish-verification.json" || \
     fail 'application lifecycle verification failed; baseline and recovery evidence retained'
 fi
+if [ "$app_environment" = dev ]; then
+  python3 "$REPO_ROOT/scripts/verify_publish_state.py" "${verify_args[@]}" --record-baseline
+fi
+import_attempted=false
 import_unverified=false
 printf 'Published APEX App %s to %s (%s / %s).\n' \
   "$app_id" "$target_label" "$workspace_name" "$parsing_schema"

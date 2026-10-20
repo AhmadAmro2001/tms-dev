@@ -194,3 +194,22 @@ publishes (`r003`). When ASHARIF publishes again, the guard reports
 `was re-imported since the local export`, showing live `[BOB-2026-09-26r003]`
 against their baseline `[ASHARIF-2026-09-26r002]`. ASHARIF exports, merges,
 and publishes `r004`.
+
+## Promotion identity and recovery evidence
+
+Direct imports establish the descriptor's parsing schema before comparing the
+writer session with the captured database identity. The authenticated session
+user must still match the configured expected user; a separate deployment
+login and parsing schema are supported.
+
+The `deploy --manual` runbook captures lifecycle state and validates that
+snapshot before passing all eight encoded identity values to the import.
+Follow the automation restoration, source comparison and lifecycle read-back
+steps before treating the deployment as verified. Its temporary evidence is
+retained until those checks complete.
+
+A failed full publish keeps the old DEV baseline and the attempted import's
+`scratch/apex-publish.*` evidence (PowerShell: `scratch/apex-publish-*`). Inspect
+`publish-verification.json` and the lifecycle report: `sourceVerified` records
+the source comparison separately from `lifecycleStatus`. Reconcile the live
+application before retrying an ambiguous or failed import.
