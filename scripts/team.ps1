@@ -97,10 +97,12 @@ Commands:
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
                                               Set up optional repository workflow packs
   skills status [--format text|json]          Inspect repository workflow packs offline
+  verify-local [--format text|json] [--live]
+                                              Check .env, template lock, apps and descriptors offline (no database)
   template-status [--format text|json] [--upstream --ref <ref>]
                                               Inspect local template drift; fetch upstream only when requested
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template, template-status, migration-plan, dev-test and skills)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, verify-local, template-status, migration-plan, dev-test and skills)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -228,7 +230,7 @@ if ($Command -in @("--help", "-h")) {
 
 # --schema NAME is the one selection channel: strip it and set PROJECT_SCHEMA so
 # every child script's loader narrows to that schema.
-if ($Command -notin @("upgrade-template", "template-status", "migration-plan", "dev-test", "skills")) {
+if ($Command -notin @("upgrade-template", "verify-local", "template-status", "migration-plan", "dev-test", "skills")) {
   $schemaFiltered = @()
   for ($index = 0; $index -lt $Arguments.Count; $index++) {
     if ($Arguments[$index] -eq "--schema") {
@@ -498,6 +500,14 @@ try {
       if ($null -eq $python) { Fail "Python 3.10 or newer is required to set up workflow skills" }
       $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
       & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "workflow_skills.py") --repo-root $repoRoot @Arguments
+      Exit-Team $LASTEXITCODE
+    }
+    "verify-local" {
+      . (Join-Path $PSScriptRoot "resolve_python.ps1")
+      $python = Resolve-TeamPython
+      if ($null -eq $python) { Fail "Python 3.10 or newer is required to verify local readiness (python3, python or py -3)" }
+      $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+      & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "verify_local.py") --repo-root $repoRoot @Arguments
       Exit-Team $LASTEXITCODE
     }
     "template-status" {

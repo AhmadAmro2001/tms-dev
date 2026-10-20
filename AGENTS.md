@@ -147,7 +147,9 @@ independent of optional workflow packs. After installing Matt's pack, invoke
   `--manual` to print a DBA runbook without connecting. A deployment writes
   to the selected APEX workspace and parsing schema.
 - **Other commands:** `scripts/team.sh doctor` validates `.env` and performs a
-  read-only SQLcl identity check. `scripts/team.sh backup-db` refreshes the
+  read-only SQLcl identity check. `scripts/team.sh verify-local` checks the
+  configuration, template lock, application sources and deployment descriptors
+  offline (`--live` adds `doctor`). `scripts/team.sh backup-db` refreshes the
   local table and code mirrors, and the ORDS mirror when the ORDS profile
   exists. `scripts/team.sh backup-ords` exports ORDS metadata only: it never
   enables REST, imports, changes ORDS configuration, creates metadata, grants
