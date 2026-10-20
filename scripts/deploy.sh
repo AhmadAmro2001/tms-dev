@@ -118,19 +118,29 @@ if [ "$manual" = true ]; then
   printf '1. Review the committed descriptor: %s\n' "$app_dir/deployments/$app_environment.json"
   printf '%s\n' \
     '2. From a shell with SQLcl and the approved connection configured, run:' \
+    '   set -euo pipefail' \
+    '   deployment_verified=false' \
     '   sqlcl_dir=$(mktemp -d "${TMPDIR:-/tmp}/apex-sqlcl-XXXXXX")' \
-    '   trap '\''rm -rf -- "$sqlcl_dir"'\'' EXIT' \
+    '   trap '\''if [ "$deployment_verified" = true ]; then rm -rf -- "$sqlcl_dir"; else echo "Retained recovery: $sqlcl_dir" >&2; fi'\'' EXIT' \
     '   cd "$sqlcl_dir"' \
     '   export SQLPATH="$sqlcl_dir" ORACLE_PATH="$sqlcl_dir"'
-  printf '   sql -S -noupdates -name %q %q %q %q %q %q %q %q %q\n' \
+  printf '   python3 %q capture --connection %q --expected-user %q --schema %q --workspace %q --app-id %q --environment %q --run-dir "$sqlcl_dir/lifecycle-before"\n' \
+    "$runbook_root/scripts/application_lifecycle.py" "$sqlcl_connection" "$expected_user" "$parsing_schema" "$workspace_name" "$app_id" "$app_environment"
+  identity_reader='import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); from scripts.application_lifecycle import read_snapshot; data = read_snapshot(Path(sys.argv[2])); fields = ("db_unique_name", "service_name", "container_id", "container_name", "edition", "server_host", "session_user", "current_schema"); print("\t".join(data["identity"][key].encode("utf-8").hex().upper() for key in fields))'
+  printf '   publication_identity_hex=$(python3 -c %q %q "$sqlcl_dir/lifecycle-before/lifecycle-snapshot.json")\n' "$identity_reader" "$runbook_root"
+  printf '%s\n' '   read -r -a publication_identity <<< "$publication_identity_hex"'
+  printf '   sql -S -noupdates -name %q %q %q %q %q %q %q %q %q "${publication_identity[@]}"\n' \
     "$sqlcl_connection" "@$runbook_root/scripts/publish_app.sql" "$parsing_schema" \
     "$target_environment" "$expected_user" "$app_dir" \
     "$app_dir/deployments/$app_environment.json" "$app_id" -
   verify_parent="apps/$parsing_schema"
   printf '3. Check that import completed without SQLcl errors and printed "Import successful." and APEX_IMPORT_VERIFIED:%s.\n' "$app_id"
-  printf '4. Re-export from the same target to a fresh temporary directory and verify exact APEXlang source bytes:\n'
+  printf '4. Restore exactly the automations that were ACTIVE before import, then verify their read-back states:\n'
+  printf '   python3 %q restore-automations --connection %q --expected-user %q --schema %q --workspace %q --app-id %q --environment %q --before "$sqlcl_dir/lifecycle-before/lifecycle-snapshot.json" --run-dir "$sqlcl_dir/automation-restore"\n' \
+    "$runbook_root/scripts/application_lifecycle.py" "$sqlcl_connection" "$expected_user" "$parsing_schema" "$workspace_name" "$app_id" "$app_environment"
+  printf '5. Re-export from the same target to a fresh temporary directory and verify exact APEXlang source bytes:\n'
   printf '   verify_dir=$(mktemp -d "${TMPDIR:-/tmp}/apex-manual-verify.XXXXXX")\n'
-  printf '%s\n' '   trap '\''rm -rf -- "$sqlcl_dir" "$verify_dir"'\'' EXIT'
+  printf '%s\n' '   trap '\''if [ "$deployment_verified" = true ]; then rm -rf -- "$sqlcl_dir" "$verify_dir"; else echo "Retained recovery: $sqlcl_dir $verify_dir" >&2; fi'\'' EXIT'
   printf '   cd "$verify_dir"\n'
   printf '   sql -S -noupdates -name %q %q %q %q %q %q\n' \
     "$sqlcl_connection" "@$runbook_root/scripts/export_apps.sql" \
@@ -142,7 +152,14 @@ if [ "$manual" = true ]; then
   printf '   %q "$exported_dir"\n' "$runbook_root/scripts/normalize_apx.sh"
   printf '   python3 %q %q %q "$exported_dir" .apex-export-before.txt .apex-export-after.txt --repo-root %q\n' \
     "$runbook_root/scripts/verify_publish_state.py" "$app_id" "$app_dir" "$runbook_root"
-  printf '5. Treat the deployment as verified only if that check prints APEX_PUBLISH_SOURCE_VERIFIED:%s.\n' "$app_id"
+  summary_writer='import json, sys; from pathlib import Path; Path(sys.argv[1]).write_text(json.dumps({"schemaVersion": 1, "sourceVerified": True, "lifecycleStatus": "unavailable"}) + "\n", encoding="utf-8")'
+  printf '   python3 -c %q "$sqlcl_dir/publish-verification.json"\n' "$summary_writer"
+  printf '   # Source check must print APEX_PUBLISH_SOURCE_VERIFIED:%s.\n' "$app_id"
+  printf '6. Verify lifecycle independently; failures retain recovery diagnostics:\n'
+  printf '   python3 %q verify --connection %q --expected-user %q --schema %q --workspace %q --app-id %q --environment %q --before "$sqlcl_dir/lifecycle-before/lifecycle-snapshot.json" --run-dir "$sqlcl_dir/lifecycle-after" --summary-path "$sqlcl_dir/publish-verification.json"\n' \
+    "$runbook_root/scripts/application_lifecycle.py" "$sqlcl_connection" "$expected_user" "$parsing_schema" "$workspace_name" "$app_id" "$app_environment"
+  printf '   deployment_verified=true\n'
+  printf '   echo "Source and application lifecycle verified."\n'
   exit 0
 fi
 

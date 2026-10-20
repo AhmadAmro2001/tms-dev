@@ -1557,6 +1557,7 @@ class TeamCliTests(unittest.TestCase):
                     fake_sqlcl.native(checkout_root / "apps/DEMO/100/deployments/prod.json"),
                     "100",
                     "-",
+                    "${publication_identity[@]}",
                 ],
             )
             self.assertEqual(
@@ -1579,7 +1580,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertFalse(sql_log.exists(), "manual mode must not invoke SQLcl")
 
     def test_manual_deploy_runbook_removes_both_of_its_temporary_directories(self) -> None:
-        # Step 2 sets an EXIT trap for SQLcl's directory; step 4 makes a second one for the
+        # Step 2 sets an EXIT trap for SQLcl's directory; step 5 makes a second one for the
         # re-export, which stayed behind after a successful verification.
         with tempfile.TemporaryDirectory() as temporary:
             script, sql_log = self.make_deploy_checkout(Path(temporary))
@@ -1589,7 +1590,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             lines = [line.strip() for line in result.stdout.splitlines()]
             created = next(index for index, line in enumerate(lines) if line.startswith("verify_dir=$(mktemp -d"))
-            self.assertEqual(lines[created + 1], "trap 'rm -rf -- \"$sqlcl_dir\" \"$verify_dir\"' EXIT", result.stdout)
+            self.assertEqual(lines[created + 1], "trap 'if [ \"$deployment_verified\" = true ]; then rm -rf -- \"$sqlcl_dir\" \"$verify_dir\"; else echo \"Retained recovery: $sqlcl_dir $verify_dir\" >&2; fi' EXIT", result.stdout)
 
     def test_manual_deploy_works_without_a_local_production_connection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

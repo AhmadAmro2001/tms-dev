@@ -525,7 +525,12 @@ class PublishAppCliTests(unittest.TestCase):
                 if shell == "pwsh":
                     # pwsh used to exit 0 here, which a caller reads as success.
                     self.assertEqual(process.returncode, 130, output)
-                    self.assertEqual(sorted(path.name for path in (root / "scratch").glob("apex-publish*")), [])
+                retained = list((root / "scratch").glob("apex-publish*"))
+                self.assertEqual(len(retained), 1, output)
+                self.assertTrue((retained[0] / "sqlcl-output.log").is_file())
+                summary = json.loads((retained[0] / "publish-verification.json").read_text(encoding="utf-8"))
+                self.assertFalse(summary["sourceVerified"])
+                self.assertEqual(summary["lifecycleStatus"], "unavailable")
                 plain = " ".join(re.sub(r"\x1b\[[0-9;]*m|\|", " ", output).split())
                 self.assertIn("interrupted while the import was running", plain)
                 self.assertIn("its result is unknown", plain)
@@ -591,7 +596,12 @@ class PublishAppCliTests(unittest.TestCase):
                 process, screen, _ = _console_ctrl_c.interrupt(command, root, environment, pause, wait_seconds=60)
 
                 self.assertEqual(process.returncode, 130, screen)
-                self.assertEqual(sorted(path.name for path in (root / "scratch").glob("apex-publish*")), [])
+                retained = list((root / "scratch").glob("apex-publish*"))
+                self.assertEqual(len(retained), 1, screen)
+                self.assertTrue((retained[0] / "sqlcl-output.log").is_file())
+                summary = json.loads((retained[0] / "publish-verification.json").read_text(encoding="utf-8"))
+                self.assertFalse(summary["sourceVerified"])
+                self.assertEqual(summary["lifecycleStatus"], "unavailable")
                 plain = " ".join(re.sub(r"\x1b\[[0-9;]*m|\|", " ", screen).split())
                 self.assertIn("interrupted while the import was running", plain)
                 self.assertIn("its result is unknown", plain)
