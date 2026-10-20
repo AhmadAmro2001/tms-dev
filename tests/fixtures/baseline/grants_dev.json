@@ -18,3 +18,4 @@
   "sections": {"object-grants": [{"owner": "APP_DEV", "object_name": "APP_DATA", "grantee": "APP_READ", "privilege": "SELECT", "grantable": "YES"}]},
   "unavailable": {}
 }
+
