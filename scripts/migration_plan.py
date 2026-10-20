@@ -624,21 +624,6 @@ def build_live_migration_plan(
     report["preflight"] = preflight_payload
     report["limitations"].append(preflight.limitation)
 
-    observed_identity = migration_checks.complete_observed_identity(coverage.get("observedIdentity"))
-    identity_incomplete = observed_identity is None
-    if identity_incomplete:
-        coverage["complete"] = False
-        coverage.pop("observedIdentity", None)
-        message = migration_checks.OBSERVED_IDENTITY_INCOMPLETE_MESSAGE
-        errors = list(preflight_payload.get("errors", []))
-        if not any(error.get("code") == "OBSERVED_IDENTITY_INCOMPLETE" for error in errors):
-            errors.append({"code": "OBSERVED_IDENTITY_INCOMPLETE", "message": message})
-        preflight_payload["errors"] = errors
-        preflight_payload["exit_code"] = 2
-        report["diagnostics"].append(
-            _diagnostic("live-target-identity-incomplete", None, message)
-        )
-
     changed_path = _changed_input_path(root, selected_paths, expected_hashes)
     if changed_path is not None:
         message = "selected SQL/check inputs changed or became unreadable during live preflight; source omitted"
@@ -655,6 +640,34 @@ def build_live_migration_plan(
 
     coverage.setdefault("selectedInputHashesVerified", True)
     locked = any(record["localEvidence"]["status"] == "locked" for record in offline["migrations"])
+    observed_identity = migration_checks.complete_observed_identity(coverage.get("observedIdentity"))
+    identity_error_reported = any(
+        isinstance(error, Mapping) and error.get("code") == "OBSERVED_IDENTITY_INCOMPLETE"
+        for error in preflight_payload.get("errors", ())
+    )
+    # Exit 2 also covers failures before a snapshot was captured. Diagnose
+    # incomplete identity only when the adapter says capture completed or
+    # already identified the captured identity as incomplete.
+    identity_capture_completed = (
+        preflight.exit_code in (0, 1)
+        or coverage.get("complete") is True
+        or identity_error_reported
+    )
+    identity_incomplete = observed_identity is None and identity_capture_completed
+    if observed_identity is None:
+        coverage.pop("observedIdentity", None)
+    if identity_incomplete:
+        coverage["complete"] = False
+        message = migration_checks.OBSERVED_IDENTITY_INCOMPLETE_MESSAGE
+        errors = list(preflight_payload.get("errors", []))
+        if not any(error.get("code") == "OBSERVED_IDENTITY_INCOMPLETE" for error in errors):
+            errors.append({"code": "OBSERVED_IDENTITY_INCOMPLETE", "message": message})
+        preflight_payload["errors"] = errors
+        preflight_payload["exit_code"] = 2
+        report["diagnostics"].append(
+            _diagnostic("live-target-identity-incomplete", None, message)
+        )
+
     if identity_incomplete or preflight.exit_code == 2:
         report["exitCode"] = 2
     elif preflight.exit_code == 1 or locked:
