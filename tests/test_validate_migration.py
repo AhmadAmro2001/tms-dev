@@ -388,5 +388,21 @@ class ValidateMigrationTests(unittest.TestCase):
         self.assertEqual(2, len(spans))
 
 
+    def test_rollout_transaction_control_accepts_only_commit_and_rollback(self) -> None:
+        from scripts.validate_migration import validate_sql_only
+
+        for source in ("COMMIT;\n", "ROLLBACK;\n", "COMMIT WORK;\n", "ROLLBACK WORK;\n", "commit work;\n"):
+            with self.subTest(accepted=source):
+                validate_sql_only(source, allow_transaction_control=True)
+        # FORCE needs a special privilege and acts on in-doubt distributed transactions; a savepoint cannot exist
+        # at the top level of a SQL-only script (SAVEPOINT itself is refused), so ROLLBACK TO has no use either.
+        for source in (
+            "ROLLBACK TO SAVEPOINT review_point;\n", "ROLLBACK TO review_point;\n", "COMMIT FORCE '1.2.3';\n",
+            "ROLLBACK FORCE '1.2.3';\n", "COMMIT COMMENT 'x';\n", "COMMIT WRITE WAIT;\n", "SAVEPOINT review_point;\n",
+        ):
+            with self.subTest(refused=source), self.assertRaises(ValueError):
+                validate_sql_only(source, allow_transaction_control=True)
+
+
 if __name__ == "__main__":
     unittest.main()
