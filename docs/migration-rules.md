@@ -182,6 +182,30 @@ fixes the object. Units created through dynamic SQL (`EXECUTE IMMEDIATE`) are
 not named in the file; cover those with an explicit postcondition, for example
 a count of `INVALID` objects in `ALL_OBJECTS`.
 
+
+## Starting a code migration from DEV
+
+A package, procedure, function, trigger or type change starts from the source that is
+live on DEV, not from the mirror under `database/`: the mirror is refreshed irregularly
+and teammates change live code.
+
+```bash
+scripts/team.sh new-migration add-customer-flag --source "PACKAGE:CUSTOMER_PKG" --source "PACKAGE BODY:CUSTOMER_PKG" --env dev
+```
+
+It reads the stored source read-only, through the same identity-checked capture as
+`baseline export-source`, and writes `migrations/<SCHEMA>/<today>_<name>-r001/`:
+
+- one step per object (`CREATE OR REPLACE` plus the live source) to edit;
+- preconditions `unchanged-since-read-*` that compare every live source line with what was
+  read, so `check-conflicts` and `migrate` refuse when someone changed the object after you
+  started (take their change into your steps, or start again);
+- postconditions `valid-*`: each object VALID without compile errors. Add checks for what
+  your change must do.
+
+A name that already exists as a migration family is refused; edit that folder, or use
+`scripts/team.sh revise` after a write attempt.
+
 ## Immutability and status receipts
 
 Once a migration has been applied or a write attempt may have begun, keep its
