@@ -244,6 +244,16 @@ it to run `/init` and it will ask these questions for you.
 
 ## 7. Check the connection
 
+First check your files without touching a database. It reads `.env`, the template lock,
+each application source and its deployment descriptors:
+
+```bash
+scripts/team.sh verify-local
+```
+
+Each line says `PASS`, `ATTENTION` or `FAIL`; fix every `FAIL` before you go on. Then check the DEV
+database connection:
+
 ```bash
 scripts/team.sh doctor
 ```
@@ -432,6 +442,7 @@ revision folder instead (`...-r002`). Commit the folder.
 | I want to… | Run |
 | --- | --- |
 | check my setup | `scripts/team.sh doctor` |
+| check my files without a database | `scripts/team.sh verify-local` |
 | copy a live app into Git | `scripts/team.sh export <app-id>` |
 | push my edited files to the live app | `scripts/team.sh publish <app-id> --env dev` |
 | refresh the read-only database copy | `scripts/team.sh backup-db` |

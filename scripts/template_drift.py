@@ -35,7 +35,7 @@ REPORT_SCHEMA_VERSION = 1
 SHA_RE = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z", re.ASCII)
 
 
-def _original_template(repo_root: Path, manifest: dict) -> bool:
+def is_original_template(repo_root: Path, manifest: dict) -> bool:
     """Recognize the original repository from its local origin URL and the manifest; never contact GitHub."""
     if not manifest or not isinstance(manifest.get("upstream"), str):
         return False
@@ -172,7 +172,7 @@ def inspect_template_drift(repo_root: Path, *, upstream: bool = False, ref: str 
         return report
 
     has_lock = (root / ".template-lock.json").exists()
-    original = _original_template(root, manifest)
+    original = is_original_template(root, manifest)
     if not has_lock and original:
         report["lockStatus"] = "not-applicable"
     elif not has_lock:

@@ -54,10 +54,12 @@ Commands:
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
                                               Set up optional repository workflow packs
   skills status [--format text|json]          Inspect repository workflow packs offline
+  verify-local [--format text|json] [--live]
+                                              Check .env, template lock, apps and descriptors offline (no database)
   template-status [--format text|json] [--upstream --ref <ref>]
                                               Inspect local template drift; fetch upstream only when requested
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template, template-status, migration-plan, dev-test and skills)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, verify-local, template-status, migration-plan, dev-test and skills)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -99,7 +101,7 @@ command_name="$1"
 shift
 # --schema NAME is the one selection channel: strip it and export PROJECT_SCHEMA
 # so every child script's loader narrows to that schema.
-if [ "$command_name" != upgrade-template ] && [ "$command_name" != template-status ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ]; then
+if [ "$command_name" != upgrade-template ] && [ "$command_name" != verify-local ] && [ "$command_name" != template-status ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ]; then
   schema_filtered=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -376,6 +378,19 @@ case "$command_name" in
         ;;
     esac
     exec python3 "$skills_script" --repo-root "$skills_root" "$@"
+    ;;
+  verify-local)
+    verify_script="$REPO_ROOT/scripts/verify_local.py"
+    verify_root="$REPO_ROOT"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        if command -v cygpath >/dev/null 2>&1; then
+          verify_script="$(cygpath -m "$verify_script")"
+          verify_root="$(cygpath -m "$REPO_ROOT")"
+        fi
+        ;;
+    esac
+    exec python3 "$verify_script" --repo-root "$verify_root" "$@"
     ;;
   template-status)
     drift_script="$REPO_ROOT/scripts/template_drift.py"

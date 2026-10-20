@@ -737,6 +737,7 @@ unknown. Version and compatibility do not prove feature privileges or availabili
 | `scripts/team.sh backup-ords` | Export ORDS (REST) metadata read-only to `database/<SCHEMA>/ords/schema.sql`. |
 | `scripts/team.sh deploy <id> --env <staging\|prod> [--manual]` | Confirm a promotion or print a DBA runbook. |
 | `scripts/team.sh upgrade-template [--dry-run]` | Update template-owned files; never overwrites project files. |
+| `scripts/team.sh verify-local [--format text\|json] [--live]` | Validate `.env`, the template manifest and lock, local template changes, application sources and deployment descriptors, and upgrade conflict copies, read-only and offline. `--live` also runs `doctor`. Exit 0 all good, 1 attention, 2 failure. |
 | `scripts/team.sh template-status [--format text\|json]` | Compare template-owned files with the local lock; no network access by default. |
 | `scripts/team.sh template-status --upstream --ref <ref>` | Explicitly compare local files with a branch, tag or commit from the manifest's upstream repository. |
 | `scripts/team.sh skills setup none\|superpowers\|mattpocock\|both [--primary superpowers\|mattpocock]` | Set up optional, pinned workflow packs locally. |
