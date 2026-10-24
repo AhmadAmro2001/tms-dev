@@ -439,7 +439,7 @@ class BaselineBuilderUnitTests(unittest.TestCase):
 
         checks = baseline._source_check_queries(unit, "APP_STAGE")
 
-        self.assertLess(len(checks), 5)
+        self.assertLess(len(checks), 4)
         for check in checks:
             self.assertEqual(check["sql"].count("ALL_SOURCE"), 1)
             self.assertLessEqual(len(check["sql"].encode("utf-8")), 24000)
