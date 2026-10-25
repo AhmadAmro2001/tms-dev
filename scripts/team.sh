@@ -49,6 +49,9 @@ Commands:
   backup-ords                                 Export ORDS metadata read-only to database/<SCHEMA>/ords/schema.sql
   deploy <app_id> --env <staging|prod> [--manual]
                                               Confirm a promotion or print a DBA runbook
+  mcp setup [--choice chrome|firefox|both|none]
+                                              Choose browser MCP servers for this checkout
+  mcp status                                  Show the saved browser MCP choice
   upgrade-template [--source <url|path>] [--ref <ref>] [--dry-run]
                                               Update template-owned files from the template
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
@@ -101,7 +104,7 @@ command_name="$1"
 shift
 # --schema NAME is the one selection channel: strip it and export PROJECT_SCHEMA
 # so every child script's loader narrows to that schema.
-if [ "$command_name" != upgrade-template ] && [ "$command_name" != verify-local ] && [ "$command_name" != template-status ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ]; then
+if [ "$command_name" != upgrade-template ] && [ "$command_name" != verify-local ] && [ "$command_name" != template-status ] && [ "$command_name" != migration-plan ] && [ "$command_name" != dev-test ] && [ "$command_name" != skills ] && [ "$command_name" != mcp ]; then
   schema_filtered=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -378,6 +381,19 @@ case "$command_name" in
         ;;
     esac
     exec python3 "$skills_script" --repo-root "$skills_root" "$@"
+    ;;
+  mcp)
+    mcp_script="$REPO_ROOT/scripts/browser_mcp.py"
+    mcp_root="$REPO_ROOT"
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*)
+        if command -v cygpath >/dev/null 2>&1; then
+          mcp_script="$(cygpath -m "$mcp_script")"
+          mcp_root="$(cygpath -m "$REPO_ROOT")"
+        fi
+        ;;
+    esac
+    exec python3 "$mcp_script" --repo-root "$mcp_root" "$@"
     ;;
   verify-local)
     verify_script="$REPO_ROOT/scripts/verify_local.py"

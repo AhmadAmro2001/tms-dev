@@ -92,6 +92,9 @@ Commands:
   backup-ords                                 Export ORDS metadata read-only to database/<SCHEMA>/ords/schema.sql
   deploy <app_id> --env <staging|prod> [--manual]
                                               Confirm a promotion or print a DBA runbook
+  mcp setup [--choice chrome|firefox|both|none]
+                                              Choose browser MCP servers for this checkout
+  mcp status                                  Show the saved browser MCP choice
   upgrade-template [--source <url|path>] [--ref <ref>] [--dry-run]
                                               Update template-owned files from the template
   skills setup none|superpowers|mattpocock|both [--primary superpowers|mattpocock]
@@ -230,7 +233,7 @@ if ($Command -in @("--help", "-h")) {
 
 # --schema NAME is the one selection channel: strip it and set PROJECT_SCHEMA so
 # every child script's loader narrows to that schema.
-if ($Command -notin @("upgrade-template", "verify-local", "template-status", "migration-plan", "dev-test", "skills")) {
+if ($Command -notin @("upgrade-template", "verify-local", "template-status", "migration-plan", "dev-test", "skills", "mcp")) {
   $schemaFiltered = @()
   for ($index = 0; $index -lt $Arguments.Count; $index++) {
     if ($Arguments[$index] -eq "--schema") {
@@ -500,6 +503,14 @@ try {
       if ($null -eq $python) { Fail "Python 3.10 or newer is required to set up workflow skills" }
       $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
       & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "workflow_skills.py") --repo-root $repoRoot @Arguments
+      Exit-Team $LASTEXITCODE
+    }
+    "mcp" {
+      . (Join-Path $PSScriptRoot "resolve_python.ps1")
+      $python = Resolve-TeamPython
+      if ($null -eq $python) { Fail "Python 3.10 or newer is required to configure browser MCPs" }
+      $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+      & $python.Path @($python.Prefix) (Join-Path $PSScriptRoot "browser_mcp.py") --repo-root $repoRoot @Arguments
       Exit-Team $LASTEXITCODE
     }
     "verify-local" {

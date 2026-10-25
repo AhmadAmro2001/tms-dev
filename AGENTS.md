@@ -51,7 +51,7 @@ Set up packs only when requested, using `scripts/team.sh skills setup <selection
 controls repository-managed copies, not global skills or enabled app plugins;
 report those separately when they affect a request to use neither.
 
-The 11 template-authored domain/setup skills remain
+The 12 template-authored domain/setup skills remain
 independent of optional workflow packs. After installing Matt's pack, invoke
 `/setup-matt-pocock-skills` when requested and put its project guidance in
 `AGENTS.project.md`, preserving existing instructions, instead of template-owned
@@ -157,6 +157,8 @@ independent of optional workflow packs. After installing Matt's pack, invoke
   [docs/ords-export.md](docs/ords-export.md) before changing it.
 
 ## Optional Tooling
+
+Browser MCPs are optional and selected per checkout with `scripts/team.sh mcp setup`. The choice is Chrome, Firefox, both, or none; `scripts/team.sh mcp status` shows it. Setup writes ignored local client configuration and starts no browser or MCP process. Codex loads project settings only for trusted checkouts. When Chrome's direct MCP is selected, never start or call the Chrome daemon for the same session. Follow `docs/browser-mcp.md` and the selected browser skill.
 
 `graphify` (a knowledge-graph indexer exposed via ignored `graphify-out/`) is
 optional; every script works without it. Its rules live in

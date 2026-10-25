@@ -25,6 +25,7 @@
     "docs/baseline.example.json",
     "docs/baseline.md",
     "docs/CHROME_DEVTOOLS_MCP.md",
+    "docs/browser-mcp.md",
     "docs/ci-checks.md",
     "docs/compare-env.md",
     "docs/daily-change-record.md",
