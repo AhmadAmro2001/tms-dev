@@ -36,6 +36,50 @@ BASE = {
 
 
 class LoginDiffersFromSchemaTests(unittest.TestCase):
+    def test_doc_exists_and_is_linked_from_readme_and_limitations(self) -> None:
+        doc_path = ROOT / "docs" / "login-acts-as-schema.md"
+        self.assertTrue(doc_path.is_file(), "the login/schema mode guide is missing")
+
+        links = (
+            (ROOT / "README.md", "docs/login-acts-as-schema.md"),
+            (ROOT / "docs" / "known-limitations.md", "login-acts-as-schema.md"),
+        )
+        for path, link in links:
+            with self.subTest(path=path.name):
+                self.assertIn(link, path.read_text(encoding="utf-8"))
+
+    def test_doc_names_the_banner_and_every_doctor_line(self) -> None:
+        contents = (ROOT / "docs" / "login-acts-as-schema.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Acting as schema APP_STAGE through ALTER SESSION SET CURRENT_SCHEMA; login is APP_LOGIN.",
+            contents,
+        )
+
+        for privilege in (
+            "SELECT ANY DICTIONARY",
+            "CREATE ANY PROCEDURE",
+            "ALTER ANY PROCEDURE",
+            "CREATE ANY TABLE",
+            "ALTER ANY TABLE",
+            "CREATE ANY INDEX",
+            "CREATE ANY TRIGGER",
+            "CREATE ANY SEQUENCE",
+            "CREATE ANY VIEW",
+            "CREATE ANY SYNONYM",
+            "GRANT ANY OBJECT PRIVILEGE",
+        ):
+            with self.subTest(privilege=privilege):
+                self.assertIn(f"SESSION_PRIVILEGE:{privilege}=", contents)
+        self.assertIn("SESSION_ROLE:APEX_ADMINISTRATOR_ROLE=", contents)
+        self.assertIn("SESSION_MODE:ACTS_AS_SCHEMA APP_STAGE LOGIN APP_LOGIN", contents)
+
+    def test_doc_tells_check_authors_to_use_current_schema(self) -> None:
+        contents = (ROOT / "docs" / "login-acts-as-schema.md").read_text(encoding="utf-8")
+        writing_checks = contents.split("## Writing checks", 1)[1].split("\n## ", 1)[0]
+
+        self.assertIn("CURRENT_SCHEMA", writing_checks)
+        self.assertIn("SESSION_USER", writing_checks)
+
     def test_doctor_runs_privilege_report_only_when_login_differs(self) -> None:
         contents = (ROOT / "scripts" / "doctor.sql").read_text(encoding="utf-8")
 
