@@ -1,7 +1,6 @@
 """`team.sh verify-local` and `team.ps1 verify-local` reach scripts/verify_local.py before any .env is loaded."""
 import json
 import os
-import shutil
 import subprocess
 import _test_subprocess_safety  # noqa: F401
 import tempfile

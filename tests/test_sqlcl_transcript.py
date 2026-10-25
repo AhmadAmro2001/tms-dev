@@ -1,7 +1,6 @@
 """SQLcl diagnostics survive an exception while waiting for a real child process."""
 from __future__ import annotations
 
-import shutil
 import subprocess
 import _test_subprocess_safety  # noqa: F401
 import tempfile
