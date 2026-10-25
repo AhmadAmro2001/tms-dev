@@ -219,9 +219,17 @@ if ([string]::IsNullOrWhiteSpace($sqlclConnection) -or [string]::IsNullOrWhiteSp
   }
 }
 
+$actingAsBanner = ""
+if ($expectedUser -cne $parsingSchema) {
+  $actingAsBanner = "Acting as schema $parsingSchema through ALTER SESSION SET CURRENT_SCHEMA; login is $expectedUser."
+}
+
 if ($appEnvironment -ne "dev") {
-  $answer = Read-Host "Deploying to $targetLabel. Proceed? [y/N]"
+  $promptBanner = if ($actingAsBanner) { " $actingAsBanner" } else { "" }
+  $answer = Read-Host "Deploying to $targetLabel.$promptBanner Proceed? [y/N]"
   if ($answer -notmatch '^(?i:y|yes)$') { throw "Publish cancelled." }
+} elseif ($actingAsBanner) {
+  Write-Output $actingAsBanner
 }
 
 # Classify the target before the live lookup opens its read-only session.

@@ -1,8 +1,13 @@
+import io
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
+from scripts import migrate
 from scripts.db_targets import Target, resolve_target
 from scripts.dev_test_target import DevTestTargetError, inspect_suite
 from scripts.local_config import ConfigError, read_project_env
@@ -34,6 +39,80 @@ class LoginDiffersFromSchemaTests(unittest.TestCase):
         target = resolve_target(BASE, "staging", "migration")
 
         self.assertEqual((target.expected_user, target.schema), ("APP_LOGIN", "APP_STAGE"))
+
+    def test_acts_as_other_schema_property(self) -> None:
+        acting_target = Target("staging", "stage-db", "APP_LOGIN", "APP_STAGE", "staging")
+        owner_target = Target("dev", "dev-db", "APP_DEV", "APP_DEV", "development")
+
+        self.assertTrue(acting_target.acts_as_other_schema)
+        self.assertFalse(owner_target.acts_as_other_schema)
+
+    def test_migrate_summary_prints_banner_only_when_login_differs(self) -> None:
+        acting_target = Target("staging", "stage-db", "APP_LOGIN", "APP_STAGE", "staging")
+        owner_target = Target("dev", "dev-db", "APP_DEV", "APP_DEV", "development")
+        banner = "Acting as schema APP_STAGE through ALTER SESSION SET CURRENT_SCHEMA; login is APP_LOGIN."
+
+        with redirect_stdout(io.StringIO()) as acting_stdout:
+            migrate._print_target_summary(acting_target, {}, [])
+        acting_lines = acting_stdout.getvalue().splitlines()
+
+        with redirect_stdout(io.StringIO()) as owner_stdout:
+            migrate._print_target_summary(owner_target, {}, [])
+        owner_output = owner_stdout.getvalue()
+
+        self.assertEqual(acting_lines[1], banner)
+        self.assertEqual(acting_stdout.getvalue().count(banner), 1)
+        self.assertNotIn(banner, owner_output)
+
+    def test_publish_prompt_names_the_login_when_it_differs(self) -> None:
+        sys.path.insert(0, str(ROOT / "tests"))
+        try:
+            from fake_sqlcl import BASH
+            from test_publish_cli import PublishAppCliTests
+        finally:
+            sys.path.pop(0)
+
+        banner = "Acting as schema APP_STAGE through ALTER SESSION SET CURRENT_SCHEMA; login is APP_LOGIN."
+        for expected_user in ("APP_LOGIN", "APP_STAGE"):
+            with self.subTest(expected_user=expected_user), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                harness = PublishAppCliTests()
+                runner, _, _, environment = harness.make_publish_fixture(root)
+                env_path = root / ".env"
+                env_path.write_text(
+                    env_path.read_text(encoding="utf-8")
+                    + f"\nSTAGING_SQLCL_CONNECTION=stage-db\nSTAGING_EXPECTED_USER={expected_user}\n",
+                    encoding="utf-8",
+                )
+                environment["PROJECT_ENV_FILE"] = str(env_path)
+                app_dir = Path(environment["FAKE_SOURCE_DIR"])
+                staging_descriptor = app_dir / "deployments" / "staging.json"
+                staging_descriptor.write_text(
+                    json.dumps({
+                        "workspace": {"name": "APP_STAGE"},
+                        "app": {"id": 100, "databaseSession": {"parsingSchema": "APP_STAGE"}},
+                    }),
+                    encoding="utf-8",
+                )
+
+                result = subprocess.run(
+                    [BASH, str(runner), "100", "--env", "staging"],
+                    cwd=root,
+                    env=environment,
+                    input=b"y\n",
+                    capture_output=True,
+                    check=False,
+                )
+                output = result.stdout.decode("utf-8", "replace") + result.stderr.decode("utf-8", "replace")
+
+                self.assertEqual(result.returncode, 0, output)
+                self.assertIn("Deploying to STAGING.", output)
+                self.assertIn("Proceed? [y/N]: ", output)
+                if expected_user == "APP_LOGIN":
+                    self.assertEqual(output.count(banner), 1)
+                    self.assertIn(f"Deploying to STAGING. {banner} Proceed? [y/N]: ", output)
+                else:
+                    self.assertNotIn(banner, output)
 
     def test_multi_schema_lists_stay_position_aligned(self) -> None:
         values = {
