@@ -16,7 +16,6 @@ from collections.abc import Sequence
 from .migration_manifest import (
     SCHEMA_DIRECTORY_RE,
     MigrationManifestError,
-    _folder_parts,
     _migration_directories,
     decode_json,
     load_archived_index,
