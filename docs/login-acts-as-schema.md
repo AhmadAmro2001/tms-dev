@@ -16,6 +16,10 @@ no acts-as-schema banner and `doctor` adds no privilege report. A different
 login must already have the privileges required for the requested statements.
 Live catalog preflight requires either `SELECT ANY DICTIONARY` or
 `SELECT_CATALOG_ROLE` to validate metadata visibility.
+Cross-owner metadata extraction through `DBMS_METADATA.GET_DDL`, including the
+code scope of `backup-db`, also needs `SELECT_CATALOG_ROLE`. In a live check,
+`SELECT ANY DICTIONARY` passed catalog preflight but did not allow package DDL
+extraction; adding `SELECT_CATALOG_ROLE` allowed `backup-db` to complete.
 
 ## Proxy login alternative
 
@@ -45,8 +49,14 @@ acts-as-schema banner or `doctor` privilege report. `dev-test` and
 
 The template checks only the saved connection alias and reported
 `SESSION_USER`/`CURRENT_SCHEMA`; it does not inspect the proxy grant itself.
-This has not been verified against a live proxy connection. Run `doctor` first
-and confirm the identity result: `SQLcl target: session_user=APP_STAGE`.
+Live proxy checks on APEX 26.1.5 and 26.2.0 with SQLcl 26.3 returned
+`SESSION_USER=APP_STAGE`, `PROXY_USER=APP_LOGIN`, and
+`CURRENT_SCHEMA=APP_STAGE`. `dev-test --plan` accepted the owner identity, but
+its scenarios were blocked because the disposable schema lacked fixture DDL
+privileges; fixture execution was not tested. `backup-ords` accepted the owner
+identity and verified an empty export because the schema was not REST-enabled
+and had no ORDS metadata. The owner identity takes the ordinary-session path,
+with no acts-as-schema banner or additional `doctor` privilege report.
 
 ## Configuration
 
