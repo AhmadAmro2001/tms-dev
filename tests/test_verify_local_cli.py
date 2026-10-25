@@ -1,8 +1,8 @@
 """`team.sh verify-local` and `team.ps1 verify-local` reach scripts/verify_local.py before any .env is loaded."""
 import json
 import os
-import shutil
 import subprocess
+import _test_subprocess_safety  # noqa: F401
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +11,7 @@ import _no_real_sqlcl  # noqa: F401  (keeps tests away from a real SQLcl)
 from fake_sqlcl import BASH
 
 ROOT = Path(__file__).resolve().parents[1]
-PWSH = shutil.which("pwsh")
+PWSH = _test_subprocess_safety.working_pwsh()
 
 
 def launchers():

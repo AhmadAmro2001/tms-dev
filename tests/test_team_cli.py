@@ -5,6 +5,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import _test_subprocess_safety  # noqa: F401
 import tempfile
 import time
 import unittest
@@ -78,29 +79,6 @@ def migration_archive_checkout(parent: Path):
     return root
 
 
-_PWSH_CHECKED = False
-_PWSH_PATH: str | None = None
-
-
-def usable_pwsh() -> str | None:
-    global _PWSH_CHECKED, _PWSH_PATH
-    if _PWSH_CHECKED:
-        return _PWSH_PATH
-    _PWSH_CHECKED = True
-    executable = shutil.which("pwsh")
-    if executable is None:
-        return None
-    try:
-        result = subprocess.run(
-            [executable, "-NoProfile", "-Command", "exit 0"],
-            capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL, timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    _PWSH_PATH = executable if result.returncode == 0 else None
-    return _PWSH_PATH
-
-
 class TeamCliTests(unittest.TestCase):
     def test_powershell_archive_route_keeps_schema_option_and_matches_bash_dispatch(self) -> None:
         wrapper = (ROOT / "scripts" / "team.ps1").read_text(encoding="utf-8")
@@ -115,7 +93,7 @@ class TeamCliTests(unittest.TestCase):
             root = migration_archive_checkout(Path(temporary))
             environment = dict(os.environ, PROJECT_ENV_FILE="/no/such/team-env")
             entries = [("team.sh", [BASH])]
-            pwsh = usable_pwsh()
+            pwsh = _test_subprocess_safety.working_pwsh()
             if pwsh:
                 entries.append(("team.ps1", [pwsh, "-NoProfile", "-File"]))
 
@@ -144,7 +122,7 @@ class TeamCliTests(unittest.TestCase):
     def test_team_wrappers_expose_baseline_and_compare_env_with_offline_help(self) -> None:
         environment = dict(os.environ, PROJECT_ENV_FILE="/no/such/team-env")
         entries = [("team.sh", [BASH])]
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh:
             entries.append(("team.ps1", [pwsh, "-NoProfile", "-File"]))
 
@@ -174,9 +152,9 @@ class TeamCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root, environment, calls = migration_plan_checkout(Path(temporary))
             for entry in ("team.sh", "team.ps1"):
-                if entry.endswith("ps1") and not usable_pwsh():
+                if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                     continue
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 script = root / "scripts" / entry
                 with self.subTest(entry=entry, mode="help"):
                     help_result = subprocess.run(
@@ -216,9 +194,9 @@ class TeamCliTests(unittest.TestCase):
             reports = []
             statuses = []
             for entry in ("team.sh", "team.ps1"):
-                if entry.endswith("ps1") and not usable_pwsh():
+                if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                     continue
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 result = subprocess.run(
                     [*launcher, str(root / "scripts" / entry), "migration-plan", *selected, "--schema", "ALPHA", "--format", "json"],
                     cwd=temporary, env=environment, capture_output=True, text=True, check=False,
@@ -291,9 +269,9 @@ class TeamCliTests(unittest.TestCase):
             )
             wrapper_results = {"team.sh": [], "team.ps1": []}
             for entry in ("team.sh", "team.ps1"):
-                if entry.endswith("ps1") and not usable_pwsh():
+                if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                     continue
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 for arguments in cases:
                     result = subprocess.run(
                         [*launcher, str(root / "scripts" / entry), "migration-plan", *arguments],
@@ -342,9 +320,9 @@ class TeamCliTests(unittest.TestCase):
             )
             reports = []
             for entry in ("team.sh", "team.ps1"):
-                if entry.endswith("ps1") and not usable_pwsh():
+                if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                     continue
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 result = subprocess.run(
                     [*launcher, str(root / "scripts" / entry), "migration-plan", "migrations/2026-10-13_live-version-floor-r001", "--live", "--env", "dev", "--format", "json"],
                     cwd=temporary, env=environment, capture_output=True, text=True, check=False,
@@ -364,7 +342,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertEqual(["-V"] * len(reports), calls.read_text(encoding="utf-8").splitlines())
 
     def test_malformed_migration_plan_options_remain_invalid_before_sqlcl(self) -> None:
-        if not usable_pwsh():
+        if not _test_subprocess_safety.working_pwsh():
             self.skipTest("PowerShell 7 is required for cross-wrapper migration-plan verification")
         env_contents = "\n".join((
             "PROJECT_NAME=fixture",
@@ -403,7 +381,7 @@ class TeamCliTests(unittest.TestCase):
             )
             wrapper_results = {"team.sh": [], "team.ps1": []}
             for entry in ("team.sh", "team.ps1"):
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 for label, arguments, json_output in cases:
                     result = subprocess.run(
                         [*launcher, str(root / "scripts" / entry), "migration-plan", *arguments],
@@ -430,7 +408,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertFalse(calls.exists(), "malformed option values must not start fake SQLcl")
 
     def test_migration_plan_powershell_classifies_only_folder_positionals(self) -> None:
-        powershell = usable_pwsh()
+        powershell = _test_subprocess_safety.working_pwsh()
         if not powershell:
             self.skipTest("PowerShell 7 is required for the portable argument classifier test")
         helper = ROOT / "scripts" / "migration_plan_args.ps1"
@@ -504,9 +482,9 @@ class TeamCliTests(unittest.TestCase):
 
     def test_dev_test_help_is_offline_in_both_wrappers(self) -> None:
         for entry in ("team.sh", "team.ps1"):
-            if entry.endswith("ps1") and not usable_pwsh():
+            if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                 continue
-            launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+            launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
             result = subprocess.run(
                 [*launcher, str(ROOT / "scripts" / entry), "dev-test", "--help"],
                 cwd=ROOT,
@@ -523,9 +501,9 @@ class TeamCliTests(unittest.TestCase):
 
     def test_top_level_help_lists_project_dev_test_options_in_both_wrappers(self) -> None:
         for entry in ("team.sh", "team.ps1"):
-            if entry.endswith("ps1") and not usable_pwsh():
+            if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                 continue
-            launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+            launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
             result = subprocess.run(
                 [*launcher, str(ROOT / "scripts" / entry), "--help"],
                 cwd=ROOT,
@@ -566,9 +544,9 @@ class TeamCliTests(unittest.TestCase):
                 "dev-tests/orders été/suite.json", "--scenario", "first", "--plan",
             ]
             for entry in ("team.sh", "team.ps1"):
-                if entry.endswith("ps1") and not usable_pwsh():
+                if entry.endswith("ps1") and not _test_subprocess_safety.working_pwsh():
                     continue
-                launcher = [BASH] if entry.endswith("sh") else [usable_pwsh(), "-NoProfile", "-File"]
+                launcher = [BASH] if entry.endswith("sh") else [_test_subprocess_safety.working_pwsh(), "-NoProfile", "-File"]
                 result = subprocess.run(
                     [*launcher, str(scripts / entry), *arguments],
                     cwd=parent,
@@ -606,7 +584,7 @@ class TeamCliTests(unittest.TestCase):
                 self.assertNotIn("configuration file not found", result.stderr)
 
     def test_powershell_migrate_uses_the_same_early_environment_validation(self) -> None:
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         environment = os.environ.copy()
@@ -729,7 +707,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertEqual(result.stdout, "|\n")
 
     def test_powershell_loader_accepts_and_clears_target_schemas(self) -> None:
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:
@@ -754,7 +732,7 @@ class TeamCliTests(unittest.TestCase):
 
     def test_both_loaders_reject_a_db_environment_that_is_not_exactly_lowercase(self) -> None:
         # PowerShell's -in is case-insensitive; the loaders must still agree.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         expected = "DB_ENVIRONMENT must be development, test, staging, or production"
@@ -785,7 +763,7 @@ class TeamCliTests(unittest.TestCase):
         listed = subprocess.run(["locale", "-a"], text=True, capture_output=True, check=False).stdout.lower()
         if "en_us.utf8" not in listed and "en_us.utf-8" not in listed:
             self.skipTest("the en_US.UTF-8 locale is not installed")
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         for key, value in (
             ("DEVELOPER_NAME", "\u00c9RIC"),
             ("CODE_SQLCL_CONNECTION", "pr\u00fcfung"),
@@ -820,7 +798,7 @@ class TeamCliTests(unittest.TestCase):
         # Windows PowerShell 5.1 writes UTF-16 for `>` and Out-File. PowerShell
         # decoded it, Bash read garbage: doctor passed and migrate then failed
         # with an unreadable "invalid line" message.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         text = (ROOT / ".env.example").read_text(encoding="utf-8")
@@ -846,7 +824,7 @@ class TeamCliTests(unittest.TestCase):
         # PowerShell's parameter binder keeps option-like tokens out of $Command,
         # so `team.ps1 --schema=DEMO doctor` printed usage and exited 0, silently
         # dropping the command. Bash says unknown command; so must PowerShell.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         environment = {**os.environ, "PROJECT_ENV_FILE": "/no/such/env"}
@@ -862,7 +840,7 @@ class TeamCliTests(unittest.TestCase):
                 self.assertIn("unknown command", re.sub(r"\x1b\[[0-9;]*m", "", powershell_result.stderr))
 
     def test_both_wrappers_still_print_usage_for_no_command_and_for_help(self) -> None:
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         for arguments in ([], ["--help"], ["-h"]):
@@ -874,7 +852,7 @@ class TeamCliTests(unittest.TestCase):
 
     def test_new_migration_is_listed_and_needs_arguments_in_both_wrappers(self) -> None:
         entries = [[BASH, str(ROOT / "scripts" / "team.sh")]]
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh:
             entries.append([pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1")])
         for command in entries:
@@ -887,7 +865,7 @@ class TeamCliTests(unittest.TestCase):
 
     def test_query_and_template_status_are_wired_into_both_wrappers(self) -> None:
         entries = [[BASH, str(ROOT / "scripts" / "team.sh")]]
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh:
             entries.append([pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1")])
         for command in entries:
@@ -905,7 +883,7 @@ class TeamCliTests(unittest.TestCase):
 
     def test_no_command_lists_only_everyday_commands_and_help_lists_all(self) -> None:
         entries = [[BASH, str(ROOT / "scripts" / "team.sh")]]
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh:
             entries.append([pwsh, "-NoProfile", "-File", str(ROOT / "scripts" / "team.ps1")])
         for command in entries:
@@ -926,7 +904,7 @@ class TeamCliTests(unittest.TestCase):
         # An uncaught throw makes PowerShell print an exception block with the
         # script path and line and exit 1; Bash prints one `team error:` line and
         # exits 2, which scripts that call the wrappers can rely on.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         environment = {**os.environ, "PROJECT_ENV_FILE": "/no/such/env"}
@@ -953,7 +931,7 @@ class TeamCliTests(unittest.TestCase):
         # check_db_target.ps1 and load_env.ps1 refuse by throwing a string, which
         # pwsh prints as an exception block (script path, line, caret) and turns
         # into status 1; Bash prints the message alone and the guard exits 2.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         template = (ROOT / ".env.example").read_text(encoding="utf-8")
@@ -987,7 +965,7 @@ class TeamCliTests(unittest.TestCase):
         # Ctrl-C stops PowerShell's own pipeline as well as the helper, so the
         # line that passes the helper's status on never ran and pwsh exited 0,
         # which a caller reads as success. Bash exits 130.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:
@@ -1026,7 +1004,7 @@ class TeamCliTests(unittest.TestCase):
         # After Ctrl-C, Invoke-Sqlcl gives SQLcl ten seconds and then kills it. Off Windows
         # that killed only the launcher it started, and whatever the launcher had started
         # (the JVM) carried on, orphaned.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:
@@ -1083,7 +1061,7 @@ class TeamCliTests(unittest.TestCase):
     def test_powershell_passes_on_the_status_a_helper_chose_when_it_was_interrupted(self) -> None:
         # migrate reports "interrupted and may be partially applied" with status 2,
         # not 130; the wrapper must not flatten that into a plain interrupt.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:
@@ -1117,7 +1095,7 @@ class TeamCliTests(unittest.TestCase):
 
     def test_the_two_usage_screens_match_apart_from_the_script_name(self) -> None:
         # The PowerShell screen once left out `--help`, an option it accepts.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         bash_usage = subprocess.run([BASH, str(ROOT / "scripts" / "team.sh"), "--help"],
@@ -1134,7 +1112,7 @@ class TeamCliTests(unittest.TestCase):
     def test_powershell_runs_bash_helpers_with_the_bash_named_by_team_bash(self) -> None:
         # On Windows the first bash on PATH may be the WSL launcher, or absent
         # when Git for Windows keeps only its cmd directory on PATH.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:
@@ -1181,7 +1159,12 @@ class TeamCliTests(unittest.TestCase):
     def test_powershell_reports_git_bash_signal_statuses_as_bash_does(self) -> None:
         # A Git Bash process that a signal ended exits with the signal number times 256
         # (512 for Ctrl-C); Bash itself says 128 plus the signal (130). Plain statuses stay.
-        engines = [path for path in (usable_pwsh(), shutil.which("powershell")) if path]
+        engines = [
+            path for path in (
+                _test_subprocess_safety.working_pwsh(),
+                _test_subprocess_safety.working_windows_powershell(),
+            ) if path
+        ]
         for engine in engines:
             for status, expected in ((512, 130), (3840, 143), (2, 2), (1, 1)):
                 with self.subTest(engine=Path(engine).name, status=status), tempfile.TemporaryDirectory() as temporary:
@@ -1198,7 +1181,7 @@ class TeamCliTests(unittest.TestCase):
                     self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
 
     def test_powershell_names_the_fix_when_no_usable_bash_is_found(self) -> None:
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         hidden_names = {"team_bash", "path", "project_env_file"}
@@ -1329,7 +1312,7 @@ class TeamCliTests(unittest.TestCase):
     def test_interrupting_a_live_preflight_reports_that_nothing_changed_and_exits_130(self) -> None:
         # check-conflicts --env only reads, so Ctrl-C while SQLcl runs ends it with
         # one line, status 130, no traceback and no scratch directory.
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         wrappers = [[BASH, "team.sh"]] + ([[pwsh, "-NoProfile", "-File", "team.ps1"]] if pwsh else [])
         for wrapper in wrappers:
             with self.subTest(wrapper=Path(wrapper[0]).name), tempfile.TemporaryDirectory() as temporary:
@@ -1423,10 +1406,10 @@ class TeamCliTests(unittest.TestCase):
     def windows_wrappers() -> list[list[str]]:
         """Every way to start team on Windows: Git Bash, and each PowerShell that is installed."""
         wrappers = [[BASH, "team.sh"]]
-        windows_powershell = shutil.which("powershell")
+        windows_powershell = _test_subprocess_safety.working_windows_powershell()
         if windows_powershell:
             wrappers.append([windows_powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "team.ps1"])
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh:
             wrappers.append([pwsh, "-NoProfile", "-File", "team.ps1"])
         return wrappers
@@ -1791,7 +1774,7 @@ class TeamCliTests(unittest.TestCase):
             self.assertFalse((project / ".template-lock.json").exists())
 
     def test_powershell_upgrade_template_command_runs_the_engine(self) -> None:
-        pwsh = usable_pwsh()
+        pwsh = _test_subprocess_safety.working_pwsh()
         if pwsh is None:
             self.skipTest("PowerShell Core is not installed")
         with tempfile.TemporaryDirectory() as temporary:

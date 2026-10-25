@@ -1,7 +1,7 @@
 import os
 import re
-import shutil
 import subprocess
+import _test_subprocess_safety  # noqa: F401
 import tempfile
 import unittest
 from fake_sqlcl import BASH
@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PWSH = shutil.which("pwsh")
+PWSH = _test_subprocess_safety.working_pwsh()
 
 
 def plain(text: str) -> str:
