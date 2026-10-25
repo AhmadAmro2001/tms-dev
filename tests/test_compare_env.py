@@ -84,6 +84,12 @@ def _without_sql_literals(source: str) -> str:
 
 
 class EnvironmentComparisonTests(unittest.TestCase):
+    def test_apex_version_capture_queries_release_view(self) -> None:
+        source = (ROOT / "scripts" / "compare_env_catalog.sql").read_text(encoding="utf-8")
+
+        self.assertIn("SELECT VERSION_NO FROM APEX_RELEASE", source)
+        self.assertNotIn("SELECT APEX_RELEASE.VERSION_NO FROM DUAL", source)
+
     def test_unreadable_selected_dictionary_section_blocks_readiness(self) -> None:
         source = catalog("dev")
         target = catalog("staging")
