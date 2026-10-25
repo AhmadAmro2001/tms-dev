@@ -237,6 +237,24 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertIn(required, guide)
         self.assertNotIn("migrations/<developer>/", guide)
 
+    def test_migration_archiving_documents_dry_run_index_gap_rule_and_example(self) -> None:
+        guide = (ROOT / "docs" / "migration-rules.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for required in (
+            "## Archiving released folders",
+            "scripts/team.sh archive-migrations <folder> [<folder>...]",
+            "--all [--keep",
+            "dry run",
+            "migrations/<SCHEMA>/.archived.json",
+            "migrations/.archived.json",
+            "r001 through r004",
+            "r005",
+            "migrations-archive/APP_ONE/",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, guide)
+        self.assertIn("scripts/team.sh archive-migrations", readme)
+
     def test_baseline_bundling_documents_counts_data_and_recovery_limits(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         baseline = (ROOT / "docs" / "baseline.md").read_text(encoding="utf-8")

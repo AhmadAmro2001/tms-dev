@@ -38,6 +38,7 @@ Everyday commands:
   check-conflicts <folder> --env dev      Check a migration against the live database
   migrate <folder> --env dev              Apply a migration
   revise <folder>                         Start the next revision of an attempted migration
+  archive-migrations <folder> [...]       Preview migration folders to archive
   backup-db                               Refresh the local database mirror
   upgrade-template --dry-run              Preview a template upgrade
 
@@ -66,6 +67,9 @@ Commands:
                                               Apply, or rehearse DML in one transaction and roll it back
   revise <folder> [--reason TEXT]             Copy to the next migration revision
   revise --check <folder>                     Report whether local attempt/receipt evidence locks a folder
+  archive-migrations <folder> [...] [--schema SCHEMA] [--destination DIR] [--reason TEXT] [--yes]
+  archive-migrations --all [--keep <folder>...] [--schema SCHEMA] [--destination DIR] [--reason TEXT] [--yes]
+                                              Move released folders outside migrations/ (dry run by default)
   verify <folder> [...] --env <env> [--phase pre|post|both] [--only-failed]
          [--format text|json] [--jobs N]     Evaluate migration checks read-only
   query --env <env> --connection <profile> [--file <path> | SQL]
@@ -105,7 +109,7 @@ Commands:
   template-status [--format text|json] [--upstream --ref <ref>]
                                               Inspect local template drift; fetch upstream only when requested
 Options:
-  --schema <NAME>                             Run one configured schema (except upgrade-template, verify-local, template-status, migration-plan, dev-test and skills)
+  --schema <NAME>                             Run one configured schema (except upgrade-template, verify-local, template-status, migration-plan, archive-migrations, dev-test and skills)
   --help                                      Show this help
 Environment:
   MIGRATION_PREFLIGHT_INVENTORY_RETRIES        Retry changing live catalogs (default 3)
@@ -233,7 +237,7 @@ if ($Command -in @("--help", "-h")) {
 
 # --schema NAME is the one selection channel: strip it and set PROJECT_SCHEMA so
 # every child script's loader narrows to that schema.
-if ($Command -notin @("upgrade-template", "verify-local", "template-status", "migration-plan", "dev-test", "skills", "mcp")) {
+if ($Command -notin @("upgrade-template", "verify-local", "template-status", "migration-plan", "archive-migrations", "dev-test", "skills", "mcp")) {
   $schemaFiltered = @()
   for ($index = 0; $index -lt $Arguments.Count; $index++) {
     if ($Arguments[$index] -eq "--schema") {
@@ -392,6 +396,31 @@ try {
         }
       }
       Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("migration-plan") + $planArguments)
+    }
+    "archive-migrations" {
+      if ($Arguments.Count -lt 1) { Fail "usage: scripts/team.ps1 archive-migrations <folder> [...] [--schema SCHEMA] [--destination DIR] [--reason TEXT] [--yes] | --all [--keep <folder>...]" }
+      $archiveArguments = @($Arguments)
+      for ($archiveIndex = 0; $archiveIndex -lt $archiveArguments.Count; $archiveIndex++) {
+        $archiveValue = [string] $archiveArguments[$archiveIndex]
+        if ($archiveValue -cin @("--reason", "--schema") -and $archiveIndex + 1 -lt $archiveArguments.Count) {
+          $archiveIndex++
+        } elseif ($archiveValue -ceq "--keep" -and $archiveIndex + 1 -lt $archiveArguments.Count) {
+          $archiveIndex++
+          $archiveArguments[$archiveIndex] = ConvertTo-MigrationFolderArgument ([string] $archiveArguments[$archiveIndex])
+        } elseif ($archiveValue -ceq "--destination" -and $archiveIndex + 1 -lt $archiveArguments.Count) {
+          $archiveIndex++
+          $archiveArguments[$archiveIndex] = ConvertTo-MigrationFolderArgument ([string] $archiveArguments[$archiveIndex])
+        } elseif ($archiveValue.StartsWith("--keep=", [System.StringComparison]::Ordinal)) {
+          $keepValue = $archiveValue.Substring("--keep=".Length)
+          $archiveArguments[$archiveIndex] = "--keep=" + (ConvertTo-MigrationFolderArgument $keepValue)
+        } elseif ($archiveValue.StartsWith("--destination=", [System.StringComparison]::Ordinal)) {
+          $destinationValue = $archiveValue.Substring("--destination=".Length)
+          $archiveArguments[$archiveIndex] = "--destination=" + (ConvertTo-MigrationFolderArgument $destinationValue)
+        } elseif (-not $archiveValue.StartsWith("-")) {
+          $archiveArguments[$archiveIndex] = ConvertTo-MigrationFolderArgument $archiveValue
+        }
+      }
+      Invoke-TeamBash -ScriptName "team.sh" -ScriptArguments (@("archive-migrations") + $archiveArguments)
     }
     "dev-test" {
       Invoke-TeamBash -ScriptName "dev_test.sh" -ScriptArguments $Arguments
