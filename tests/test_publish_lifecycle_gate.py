@@ -1,6 +1,6 @@
 import json
-import shutil
 import subprocess
+import _test_subprocess_safety  # noqa: F401
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class PublishLifecycleGateTests(unittest.TestCase):
     def test_lifecycle_failure_preserves_baseline_and_recovery_in_both_shells(self):
         launchers = [('bash', [BASH])]
-        if shutil.which('pwsh'):
-            launchers.append(('pwsh', [shutil.which('pwsh'), '-NoProfile', '-File']))
+        if _test_subprocess_safety.working_pwsh():
+            launchers.append(('pwsh', [_test_subprocess_safety.working_pwsh(), '-NoProfile', '-File']))
         for engine, launcher in launchers:
             for mode in ('post-attention', 'restore-failure', 'source-mismatch'):
                 with self.subTest(engine=engine, mode=mode), tempfile.TemporaryDirectory() as temporary:
