@@ -16,7 +16,9 @@ class _TestPopen(_original_popen):
     """Use EOF for unspecified child stdin and bound default waits."""
 
     def __init__(self, *args, **kwargs):
-        if kwargs.get("stdin") is None:
+        # A child started with creationflags (the Windows console Ctrl-C helper) must keep the console's
+        # own stdin: redirecting it changes how the console delivers the keypress.
+        if kwargs.get("stdin") is None and not kwargs.get("creationflags"):
             kwargs["stdin"] = subprocess.DEVNULL
         super().__init__(*args, **kwargs)
 
@@ -32,7 +34,7 @@ class _TestPopen(_original_popen):
 
 
 def _safe_run(*popenargs, **kwargs):
-    if kwargs.get("stdin") is None and kwargs.get("input") is None:
+    if kwargs.get("stdin") is None and kwargs.get("input") is None and not kwargs.get("creationflags"):
         kwargs["stdin"] = subprocess.DEVNULL
     if kwargs.get("timeout") is None:
         kwargs["timeout"] = DEFAULT_TIMEOUT_SECONDS
