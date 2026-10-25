@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,59 @@ BASE = {
 
 
 class LoginDiffersFromSchemaTests(unittest.TestCase):
+    def test_doctor_runs_privilege_report_only_when_login_differs(self) -> None:
+        contents = (ROOT / "scripts" / "doctor.sql").read_text(encoding="utf-8")
+
+        self.assertRegex(
+            contents,
+            r"(?is)COLUMN\s+doctor_session_privilege_script\s+NEW_VALUE\s+doctor_session_privilege_script\s+NOPRINT\s+"
+            r"SELECT\s+CASE\s+WHEN\s+UPPER\('&&expected_user'\)\s*<>\s*UPPER\('&&target_schema'\)\s+"
+            r"THEN\s+'doctor_session_privileges\.sql'\s+ELSE\s+'doctor_no_report\.sql'\s+END\s+"
+            r"AS\s+doctor_session_privilege_script\s+FROM\s+DUAL\s*;\s*"
+            r"@@&&doctor_session_privilege_script",
+        )
+        no_report = (ROOT / "scripts" / "doctor_no_report.sql").read_text(encoding="utf-8")
+        self.assertRegex(no_report, r"(?s)\A\s*--[^\r\n]*(?:\r?\n)?\s*\Z")
+
+    def test_privilege_report_is_read_only_and_uses_session_views(self) -> None:
+        contents = (ROOT / "scripts" / "doctor_session_privileges.sql").read_text(encoding="utf-8")
+        uncommented = re.sub(r"/\*.*?\*/|--[^\r\n]*", " ", contents, flags=re.DOTALL)
+        without_literals = re.sub(r"'(?:''|[^'])*'", "''", uncommented)
+
+        self.assertIn("SESSION_PRIVS", contents.upper())
+        self.assertIn("SESSION_ROLES", contents.upper())
+        self.assertNotRegex(contents, r"(?i)\bDBA_[A-Z0-9_$#]+\b")
+        self.assertNotRegex(
+            without_literals,
+            r"(?i)\b(?:INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|RENAME)\b",
+        )
+
+    def test_privilege_report_lists_the_pinned_names(self) -> None:
+        contents = (ROOT / "scripts" / "doctor_session_privileges.sql").read_text(encoding="utf-8")
+        for privilege in (
+            "SELECT ANY DICTIONARY",
+            "CREATE ANY PROCEDURE",
+            "ALTER ANY PROCEDURE",
+            "CREATE ANY TABLE",
+            "ALTER ANY TABLE",
+            "CREATE ANY INDEX",
+            "CREATE ANY TRIGGER",
+            "CREATE ANY SEQUENCE",
+            "CREATE ANY VIEW",
+            "CREATE ANY SYNONYM",
+            "GRANT ANY OBJECT PRIVILEGE",
+            "APEX_ADMINISTRATOR_ROLE",
+        ):
+            with self.subTest(name=privilege):
+                self.assertIn(privilege, contents)
+        for marker in (
+            "SESSION_PRIVILEGE:",
+            "SESSION_ROLE:APEX_ADMINISTRATOR_ROLE=",
+            "SESSION_MODE:ACTS_AS_SCHEMA ",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, contents)
+
     def test_target_keeps_login_and_schema_apart(self) -> None:
         target = resolve_target(BASE, "staging", "migration")
 
