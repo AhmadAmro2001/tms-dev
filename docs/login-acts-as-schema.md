@@ -8,13 +8,45 @@ login, and `*_SCHEMA` remains the schema being targeted. The scripts verify
 both identities and use `ALTER SESSION SET CURRENT_SCHEMA` to resolve
 unqualified names in that schema. This needs neither the schema owner's
 credentials nor a proxy grant; it does not make the login the schema owner or
-give it extra privileges.
+give it extra privileges. If a proxy grant is available, see [Proxy login
+alternative](#proxy-login-alternative).
 
 When the login and target schema are the same, behavior is unchanged: there is
 no acts-as-schema banner and `doctor` adds no privilege report. A different
 login must already have the privileges required for the requested statements.
 Live catalog preflight requires either `SELECT ANY DICTIONARY` or
 `SELECT_CATALOG_ROLE` to validate metadata visibility.
+
+## Proxy login alternative
+
+When a DBA can grant proxy access, prefer it over acts-as-schema mode:
+
+```sql
+ALTER USER APP_STAGE GRANT CONNECT THROUGH APP_LOGIN;
+```
+
+Save the SQLcl connection with the proxy user form `APP_LOGIN[APP_STAGE]`.
+Oracle reports `SESSION_USER` as `APP_STAGE`, so set both staging identity
+values to the schema owner:
+
+```dotenv
+STAGING_EXPECTED_USER=APP_STAGE
+STAGING_SCHEMA=APP_STAGE
+```
+
+The template treats this as an ordinary owner session: there is no
+acts-as-schema banner or `doctor` privilege report. `dev-test` and
+`backup-ords` pass their owner check because `SESSION_USER` equals the schema.
+
+| Mode | Setup | Direct statement privileges |
+| --- | --- | --- |
+| Proxy login | DBA grants proxy access | Uses the schema owner's grants; needs no `ANY` privileges. |
+| Acts-as-schema | No grant needed | Uses the login's grants; `doctor` reports its checked privileges and role. |
+
+The template checks only the saved connection alias and reported
+`SESSION_USER`/`CURRENT_SCHEMA`; it does not inspect the proxy grant itself.
+This has not been verified against a live proxy connection. Run `doctor` first
+and confirm the identity result: `SQLcl target: session_user=APP_STAGE`.
 
 ## Configuration
 
