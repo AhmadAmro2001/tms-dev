@@ -240,12 +240,11 @@ if [ "$expected_user" != "$parsing_schema" ]; then
   acting_as_banner="Acting as schema $parsing_schema through ALTER SESSION SET CURRENT_SCHEMA; login is $expected_user."
 fi
 
+if [ -n "$acting_as_banner" ]; then
+  printf '%s\n' "$acting_as_banner"
+fi
 if [ "$app_environment" != dev ]; then
-  if [ -n "$acting_as_banner" ]; then
-    printf 'Deploying to %s. %s Proceed? [y/N]: ' "$target_label" "$acting_as_banner"
-  else
-    printf 'Deploying to %s. Proceed? [y/N]: ' "$target_label"
-  fi
+  printf 'Deploying to %s. Proceed? [y/N]: ' "$target_label"
   answer=""
   IFS= read -r answer || true
   # An answer piped from Windows PowerShell arrives as "y" followed by CR LF; drop the CR.
@@ -254,8 +253,6 @@ if [ "$app_environment" != dev ]; then
     y|yes) ;;
     *) printf 'Publish cancelled.\n' >&2; exit 1 ;;
   esac
-elif [ -n "$acting_as_banner" ]; then
-  printf '%s\n' "$acting_as_banner"
 fi
 
 # Classify the target before the live lookup opens its read-only session.

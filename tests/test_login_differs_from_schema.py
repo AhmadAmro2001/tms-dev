@@ -204,11 +204,10 @@ class LoginDiffersFromSchemaTests(unittest.TestCase):
                 output = result.stdout.decode("utf-8", "replace") + result.stderr.decode("utf-8", "replace")
 
                 self.assertEqual(result.returncode, 0, output)
-                self.assertIn("Deploying to STAGING.", output)
-                self.assertIn("Proceed? [y/N]: ", output)
+                self.assertIn("Deploying to STAGING. Proceed? [y/N]: ", output)
                 if expected_user == "APP_LOGIN":
                     self.assertEqual(output.count(banner), 1)
-                    self.assertIn(f"Deploying to STAGING. {banner} Proceed? [y/N]: ", output)
+                    self.assertLess(output.index(banner), output.index("Deploying to STAGING. Proceed? [y/N]: "))
                 else:
                     self.assertNotIn(banner, output)
 
