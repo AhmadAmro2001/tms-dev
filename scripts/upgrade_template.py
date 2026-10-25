@@ -726,6 +726,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{action.kind} {action.path}")
             if not args.dry_run:
                 apply_actions(project_root, template_root, actions, source, commit, new_lock, lock_hash=lock_hash, template_ref=chosen_ref)
+                _post_upgrade_sync(project_root, actions)
     except UpgradeError as exc:
         print(f"template upgrade error: {exc}", file=sys.stderr)
         return 2
@@ -750,6 +751,35 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     return 0
+
+
+# ASHARIF 2026-10-24: Post-upgrade synchronization for Graphify and toolchain components
+def _post_upgrade_sync(project_root: Path, actions: list[Action]) -> None:
+    """Synchronize environment integrations when upgrade touches toolchain files."""
+    setup_script = project_root / "scripts" / "setup_graphify_apx.py"
+    if not setup_script.is_file():
+        return
+    graphify_out = project_root / "graphify-out"
+    touched_extractor = any(
+        a.path in ("scripts/graphify_apexlang_extractor.py", "scripts/setup_graphify_apx.py")
+        and a.kind in ("UPDATE", "ADD")
+        for a in actions
+    )
+    if not (graphify_out.is_dir() or touched_extractor):
+        return
+
+    try:
+        res = subprocess.run(
+            [sys.executable, str(setup_script)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if res.returncode == 0:
+            print("Graphify APEXlang extractor synchronized")
+    except Exception as exc:
+        print(f"notice: could not run setup_graphify_apx: {exc}", file=sys.stderr)
 
 
 def _interrupt_on_sigterm() -> None:

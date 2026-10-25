@@ -1126,6 +1126,40 @@ class LineEndingPlanTests(unittest.TestCase):
             self.assertEqual((project / "AGENTS.md").read_bytes(), b"rules v1\n")
             self.assertFalse((project / upgrade_engine.LOCK_NAME).exists())
 
+    # ASHARIF 2026-10-24: Test post-upgrade synchronization for Graphify
+    def test_post_upgrade_sync_runs_setup_graphify_when_extractor_touched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            scripts = project / "scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            setup_script = scripts / "setup_graphify_apx.py"
+            setup_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+            actions = [upgrade_engine.Action("UPDATE", "scripts/graphify_apexlang_extractor.py")]
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+                upgrade_engine._post_upgrade_sync(project, actions)
+                mock_run.assert_called_once_with(
+                    [sys.executable, str(setup_script)],
+                    cwd=project,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+    # ASHARIF 2026-10-24: Test post-upgrade synchronization skipped when untargeted
+    def test_post_upgrade_sync_skipped_when_extractor_untouched_and_no_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            scripts = project / "scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            (scripts / "setup_graphify_apx.py").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+            actions = [upgrade_engine.Action("UPDATE", "AGENTS.md")]
+            with patch("subprocess.run") as mock_run:
+                upgrade_engine._post_upgrade_sync(project, actions)
+                mock_run.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

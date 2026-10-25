@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import importlib.util
 from pathlib import Path
 import re
 import sys
@@ -885,6 +886,67 @@ def parse_apexlang(text: str, path: Path) -> dict[str, object]:
     return {"nodes": nodes, "edges": edges}
 
 
+# ASHARIF 2026-10-24: Dynamic project extractor delegation for installed Graphify environments
+_DELEGATE_CACHE: dict[Path, tuple[float, object]] = {}
+_DISPATCHING: bool = False
+
+
+def _find_project_extractor(source_path: Path) -> Path | None:
+    """Find scripts/graphify_apexlang_extractor.py in the target project root."""
+    try:
+        resolved = source_path.resolve()
+        for parent in resolved.parents:
+            candidate = parent / "scripts" / "graphify_apexlang_extractor.py"
+            if candidate.is_file():
+                return candidate
+    except (OSError, RuntimeError):
+        pass
+    return None
+
+
+def _get_project_delegate(source_path: Path) -> object | None:
+    """Load project-owned extractor if present and different from this module."""
+    global _DISPATCHING
+    if _DISPATCHING:
+        return None
+    candidate = _find_project_extractor(source_path)
+    if candidate is None:
+        return None
+    try:
+        this_file = Path(__file__).resolve()
+        if candidate.samefile(this_file):
+            return None
+    except (OSError, ValueError):
+        if candidate == Path(__file__).resolve():
+            return None
+
+    try:
+        mtime = candidate.stat().st_mtime
+    except OSError:
+        return None
+
+    cached = _DELEGATE_CACHE.get(candidate)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
+    try:
+        module_name = f"_project_apexlang_{abs(hash(str(candidate)))}"
+        spec = importlib.util.spec_from_file_location(module_name, candidate)
+        if spec and spec.loader:
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            _DELEGATE_CACHE[candidate] = (mtime, module)
+            return module
+    except Exception as exc:
+        print(
+            f"Warning: could not load project extractor '{candidate}': {exc}",
+            file=sys.stderr,
+        )
+        return None
+    return None
+
+
 def extract_sql_linked(path: Path) -> dict:
     """Graphify's SQL extraction, with foreign keys pointed at mirrored tables.
 
@@ -894,6 +956,16 @@ def extract_sql_linked(path: Path) -> dict:
     replaced here by the parent's node id whenever the parent is mirrored under
     ``database/<schema>/``; anything else is left exactly as extracted.
     """
+    # ASHARIF 2026-10-24: Delegate to workspace extractor if present
+    global _DISPATCHING
+    delegate = _get_project_delegate(path)
+    if delegate and hasattr(delegate, "extract_sql_linked"):
+        try:
+            _DISPATCHING = True
+            return delegate.extract_sql_linked(path)
+        finally:
+            _DISPATCHING = False
+
     from graphify.extractors.sql import extract_sql
 
     result = extract_sql(path)
@@ -933,6 +1005,16 @@ def extract_apexlang(path: Path) -> dict[str, object]:
     warning matters as much as the catch -- returning an `error` nobody reads
     is how a file silently vanishes from the graph.
     """
+    # ASHARIF 2026-10-24: Delegate to workspace extractor if present
+    global _DISPATCHING
+    delegate = _get_project_delegate(path)
+    if delegate and hasattr(delegate, "extract_apexlang"):
+        try:
+            _DISPATCHING = True
+            return delegate.extract_apexlang(path)
+        finally:
+            _DISPATCHING = False
+
     try:
         text = path.read_text(encoding="utf-8")
         return parse_apexlang(text, path)
