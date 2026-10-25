@@ -36,6 +36,7 @@
     "docs/GETTING_STARTED.md",
     "docs/TROUBLESHOOTING.md",
     "docs/known-limitations.md",
+    "docs/login-acts-as-schema.md",
     "docs/migration-planning.md",
     "docs/migration-rules.md",
     "docs/ords-export.md",
