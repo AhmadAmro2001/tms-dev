@@ -253,7 +253,7 @@ class JobsFromEnvironmentTests(unittest.TestCase):
             run_modules(["test_x"])
         self.assertEqual(seen["CI_TEST_JOBS"], "1")
         self.assertIs(seen["stdin"], subprocess.DEVNULL)
-        self.assertEqual(seen["timeout"], 300)
+        self.assertEqual(seen["timeout"], 900)
 
     def test_each_child_loads_the_guard_that_discovery_gives_every_module(self):
         commands = []
