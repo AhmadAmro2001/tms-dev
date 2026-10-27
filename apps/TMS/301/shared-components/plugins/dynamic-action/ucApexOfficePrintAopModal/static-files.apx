@@ -1,0 +1,14 @@
+file uc.aopdownload.min.css (
+    mimeType: text/css
+    charSet: utf-8
+)
+
+file uc.aopdownload.min.js (
+    mimeType: text/javascript
+    charSet: utf-8
+)
+
+file uc.aopdownloadCommon.min.js (
+    mimeType: application/javascript
+    charSet: utf-8
+)

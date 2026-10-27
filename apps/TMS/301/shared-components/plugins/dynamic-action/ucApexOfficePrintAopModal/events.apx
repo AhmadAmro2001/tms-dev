@@ -1,0 +1,23 @@
+event aopdownloadexecbefore (
+    name: AOP: Before Generating a Report
+)
+
+event aopdownloadexecfailure (
+    name: AOP: Report Generation Failed
+)
+
+event aopdownloadexecsucces (
+    name: "AOP: Report Generation "
+)
+
+event aopdownloadexecsuccesbackground (
+    name: AOP: Report Generating in the Background
+)
+
+event aopdownloadexecsuccescheduled (
+    name: AOP: Report Generation Scheduled
+)
+
+event aopdownloadexecsuccesnow (
+    name: AOP: Report Generated (Now)
+)

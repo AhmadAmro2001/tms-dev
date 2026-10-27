@@ -1,0 +1,231 @@
+page 61 (
+    name: Logs
+    alias: LOGS
+    title: Logs
+    pageGroup: @administration
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Logs
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region logs (
+        name: Logs
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery: select ID, EVENT_TIME, EVENT_CODE, ENTITY_TYPE, ENTITY_ID, SUCCESS_FLAG, CORRELATION_ID from AUDIT_EVENT order by EVENT_TIME desc
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1')
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47991089580343312
+        }
+
+        column CORRELATION_ID (
+            type: plainText
+            heading {
+                heading: CORRELATION ID
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column ENTITY_ID (
+            type: plainText
+            heading {
+                heading: ENTITY ID
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ENTITY_TYPE (
+            type: plainText
+            heading {
+                heading: ENTITY TYPE
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column EVENT_CODE (
+            type: plainText
+            heading {
+                heading: EVENT CODE
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EVENT_TIME (
+            type: plainText
+            heading {
+                heading: EVENT TIME
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column SUCCESS_FLAG (
+            type: plainText
+            heading {
+                heading: SUCCESS FLAG
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CORRELATION_ID (
+                sequence: 7
+            )
+
+            displayColumn ENTITY_ID (
+                sequence: 5
+            )
+
+            displayColumn ENTITY_TYPE (
+                sequence: 4
+            )
+
+            displayColumn EVENT_CODE (
+                sequence: 3
+            )
+
+            displayColumn EVENT_TIME (
+                sequence: 2
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn SUCCESS_FLAG (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+)

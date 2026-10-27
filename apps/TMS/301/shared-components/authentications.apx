@@ -1,0 +1,27 @@
+authentication tms-custom-auth (
+    name: TMS_CUSTOM_AUTH
+    type: custom
+    settings {
+        authFunctionName: AUTH_PKG.AUTHENTICATE
+    }
+    source {
+        plsqlCode:
+            ```plsql
+            procedure post_authentication is
+            begin
+                if AUTH_PKG.IS_PASSWORD_RESET_REQUIRED then
+                    apex_util.redirect_url(
+                        'f?p=' || v('APP_ID') || ':9999:' || v('APP_SESSION') || '::CHANGE_PASSWORD'
+                    );
+                end if;
+            end post_authentication;
+            ```
+    }
+    loginProcessing {
+        postAuthenticationProcedureName: post_authentication
+    }
+    postLogout {
+        redirectTo: url
+        url: f?p=&APP_ID.:9999
+    }
+)

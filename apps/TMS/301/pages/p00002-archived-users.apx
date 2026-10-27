@@ -1,0 +1,486 @@
+page 2 (
+    name: Archived Users
+    alias: ARCHIVED-USERS
+    title: Archived Users
+    pageGroup: @administration
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function archiveUser(userAccountId) {
+            
+                if (!confirm('Are you sure you want to archive this user?')) {
+                    return;
+                }
+            
+                apex.server.process(
+                    "ARCHIVE_USER",
+                    {
+                        x01: userAccountId
+                    },
+                    {
+                        success: function () {
+            
+                            apex.message.showPageSuccess(
+                                "User archived successfully."
+                            );
+            
+                            apex.region("APP_USERS_REPORT").refresh();
+                        },
+            
+                        error: function (jqXHR, textStatus, errorThrown) {
+            
+                            apex.message.alert(
+                                "Error archiving user: " + errorThrown
+                            );
+            
+                        }
+                    }
+                );
+            }
+            ```
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region users (
+        name: Users
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select au.ID, au.APEX_USERNAME, ro.name as role_name, au.ENABLED, CASE
+                        WHEN au.IS_ALLOWED_TO_PRINT_TIMESHEET = 'Y' THEN 'Yes'
+                        WHEN au.IS_ALLOWED_TO_PRINT_TIMESHEET = 'N' THEN 'No'
+                        ELSE NULL
+                    END AS IS_ALLOWED_TO_PRINT_TIMESHEET, au.IS_LIMITED_TIMESHEET_ACCESS, listagg(l.NAME, ', ') within group (order by l.NAME) AS LOCATION_NAMES, au.CREATED_AT, apex_page.get_url(p_page => 1124, p_items => 'P1124_APP_USER_ID', p_values => to_char(au.ID)) AS EDIT_URL,
+                       '<button type="button"
+                        class="t-Button t-Button--small"
+                        onclick="archiveUser(' || uacc.ID || ')">
+                       Archive
+                    </button>' AS ARCHIVE_BTN,
+                
+                    '<button type="button"
+                        class="t-Button t-Button--small"
+                        onclick="updatePrintAccess(' || au.ID || ', ''N'')">
+                        Print Permission
+                    </button>' AS PRINT_PERMISSION
+                
+                     from APP_USER au join APP_USER_ROLE ur on ur.APP_USER_ID=au.ID
+                  join APP_ROLE r on r.ID=ur.APP_ROLE_ID
+                  join role ro on ro.id = ur.APP_ROLE_ID
+                   left join APP_USER_LOCATION ul on ul.APP_USER_ID=au.ID
+                    left join LOCATION l on l.ID=ul.LOCATION_ID 
+                    join user_account uacc on uacc.id = au.LEGACY_USER_ID
+                    where uacc.IS_ARCHIVED = 1
+                    group by au.ID, au.APEX_USERNAME, ro.name , au.ENABLED, au.IS_ALLOWED_TO_PRINT_TIMESHEET, au.IS_LIMITED_TIMESHEET_ACCESS, au.CREATED_AT , uacc.ID
+                    order by au.APEX_USERNAME
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: APP_USERS_REPORT
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 102435976567026073
+        }
+
+        column APEX_USERNAME (
+            type: plainText
+            heading {
+                heading: APEX USERNAME
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ARCHIVE_BTN (
+            type: plainText
+            heading {
+                heading: Archive Btn
+            }
+            layout {
+                sequence: 49
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CREATED_AT (
+            type: plainText
+            heading {
+                heading: Created At
+            }
+            layout {
+                sequence: 39
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 9
+            }
+            columnFormatting {
+                htmlExpression: <a href="#EDIT_URL!ATTR#" class="t-Button t-Button--noLabel t-Button--icon t-Button--link" aria-label="Edit" title="Edit"><span class="fa fa-edit" aria-hidden="true"></span></a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ENABLED (
+            type: plainText
+            heading {
+                heading: Access System
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 19
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column IS_ALLOWED_TO_PRINT_TIMESHEET (
+            type: plainText
+            heading {
+                heading: Can Print Timesheet
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column IS_LIMITED_TIMESHEET_ACCESS (
+            type: plainText
+            heading {
+                heading: ACCESS LIMITED TIMESHEET
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column LOCATION_NAMES (
+            type: plainText
+            heading {
+                heading: LOCATION
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PRINT_PERMISSION (
+            type: plainText
+            heading {
+                heading: Print Permission
+            }
+            layout {
+                sequence: 59
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ROLE_NAME (
+            type: plainText
+            heading {
+                heading: Role Name
+            }
+            layout {
+                sequence: 29
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn APEX_USERNAME (
+                sequence: 1
+            )
+
+            displayColumn ARCHIVE_BTN (
+                sequence: 9
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 7
+            )
+
+            displayColumn ENABLED (
+                sequence: 6
+            )
+
+            displayColumn IS_ALLOWED_TO_PRINT_TIMESHEET (
+                sequence: 4
+            )
+
+            displayColumn IS_LIMITED_TIMESHEET_ACCESS (
+                sequence: 5
+            )
+
+            displayColumn LOCATION_NAMES (
+                sequence: 2
+            )
+
+            displayColumn PRINT_PERMISSION (
+                sequence: 8
+            )
+
+            displayColumn ROLE_NAME (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    button create-user (
+        buttonName: CREATE_USER
+        label: Create User
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1124
+                clearCache: 1124
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    button create-user_1 (
+        buttonName: CREATE_USER_1
+        label: Create User
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1124
+                clearCache: 1124
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    dynamicAction refresh-users-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @users
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @users
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process archive-user (
+        name: ARCHIVE_USER
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                
+                v_is_archive_flag number;
+                
+                BEGIN
+                
+                    select IS_ARCHIVED into v_is_archive_flag from USER_ACCOUNT where id = apex_application.g_x01;
+                
+                    if v_is_archive_flag = 0 then 
+                
+                    UPDATE USER_ACCOUNT
+                    SET IS_ARCHIVED = 1
+                    WHERE ID = apex_application.g_x01;
+                    else
+                        UPDATE USER_ACCOUNT
+                    SET IS_ARCHIVED = 0
+                    WHERE ID = apex_application.g_x01;
+                    end if;
+                
+                    COMMIT;
+                
+                     apex_json.open_object;
+                    apex_json.write('success', true);
+                    apex_json.close_object;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 54452959287682840
+        }
+    )
+
+)

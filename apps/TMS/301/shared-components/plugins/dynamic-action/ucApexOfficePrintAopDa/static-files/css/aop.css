@@ -1,0 +1,17 @@
+.aop-Processing {
+  z-index: 99999999;
+}
+
+.t-Button .aop-Processing {
+  --sk-size: var(--a-button-font-size, 20px);
+}
+
+.aop-InlinePreview {
+  display: flex;
+  flex-direction: column;
+}
+
+.aop-InlinePreview .aop-InlinePreview--downloadButton {
+  margin-bottom: 8px;
+  align-self: flex-end;
+}

@@ -1,0 +1,702 @@
+page 1148 (
+    name: Employee Details
+    alias: EMPLOYEE-DETAILS
+    title: Employee Details
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    region form-body (
+        name: Employee Form
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region new (
+        name: Employee View
+        type: dynamicContent
+        source {
+            plsqlFunctionBody:
+                ```plsql
+                
+                DECLARE
+                    l_html          CLOB;
+                    l_status        VARCHAR2(30);
+                    l_status_class  VARCHAR2(30);
+                    l_print_status  VARCHAR2(30);
+                    l_print_class   VARCHAR2(30);
+                    l_rotation_name VARCHAR2(500);
+                
+                    --------------------------------------------------
+                    -- Escape HTML
+                    --------------------------------------------------
+                    FUNCTION safe_text(p_value IN VARCHAR2)
+                        RETURN VARCHAR2
+                    IS
+                    BEGIN
+                        RETURN apex_escape.html(
+                            NVL(TRIM(p_value), 'Not provided')
+                        );
+                    END;
+                
+                    --------------------------------------------------
+                    -- Reusable Information Card
+                    --------------------------------------------------
+                    FUNCTION info_card(
+                        p_label IN VARCHAR2,
+                        p_value IN VARCHAR2
+                    ) RETURN VARCHAR2
+                    IS
+                    BEGIN
+                        RETURN
+                            '<div class="ev-field">' ||
+                                '<span class="ev-field-label">' ||
+                                    apex_escape.html(p_label) ||
+                                '</span>' ||
+                                '<span class="ev-field-value">' ||
+                                    safe_text(p_value) ||
+                                '</span>' ||
+                            '</div>';
+                    END;
+                
+                BEGIN
+                
+                    --------------------------------------------------
+                    -- Check Employee
+                    --------------------------------------------------
+                    IF :P1148_ENTITY_ID IS NULL THEN
+                        RETURN
+                            '<div class="employee-not-found">
+                                No employee selected.
+                            </div>';
+                    END IF;
+                
+                    --------------------------------------------------
+                    -- Employee Status
+                    --------------------------------------------------
+                    IF UPPER(TRIM(:P1148_IS_ACTIVE)) IN ('1', 'Y') THEN
+                        l_status := 'Active';
+                        l_status_class := 'ev-active';
+                
+                    ELSIF UPPER(TRIM(:P1148_IS_ACTIVE)) IN ('0', 'N') THEN
+                        l_status := 'Inactive';
+                        l_status_class := 'ev-inactive';
+                
+                    ELSE
+                        l_status := 'Unknown';
+                        l_status_class := 'ev-neutral';
+                    END IF;
+                
+                    --------------------------------------------------
+                    -- Timesheet Preference
+                    --------------------------------------------------
+                    IF UPPER(TRIM(:P1148_PRINT_TIMESHEET)) IN ('1', 'Y') THEN
+                        l_print_status := 'Enabled';
+                        l_print_class := 'ev-active';
+                
+                    ELSIF UPPER(TRIM(:P1148_PRINT_TIMESHEET)) IN ('0', 'N') THEN
+                        l_print_status := 'Disabled';
+                        l_print_class := 'ev-inactive';
+                
+                    ELSE
+                        l_print_status := 'Not specified';
+                        l_print_class := 'ev-neutral';
+                    END IF;
+                
+                    --------------------------------------------------
+                    -- Get Employee Latest Rotation Name
+                    --------------------------------------------------
+                    BEGIN
+                        SELECT
+                            NVL(r.NAME, 'Not Assigned')
+                        INTO
+                            l_rotation_name
+                        FROM ROTATION_HISTORY rh
+                        LEFT JOIN ROTATION_PLAN r
+                            ON r.ID = rh.ROTATION_ID
+                        WHERE rh.EMPLOYEE_ID = :P1148_ENTITY_ID
+                          AND rh.STARTED <= LOCALTIMESTAMP
+                        ORDER BY
+                            rh.STARTED DESC,
+                            rh.CREATION_DATE DESC NULLS LAST,
+                            rh.ID DESC
+                        FETCH FIRST 1 ROW ONLY;
+                
+                    EXCEPTION
+                        WHEN NO_DATA_FOUND THEN
+                            l_rotation_name := 'Not Assigned';
+                    END;
+                
+                    --------------------------------------------------
+                    -- Employee Header
+                    --------------------------------------------------
+                    l_html := q'~
+                    <div class="ev-profile">
+                
+                        <div class="employee-card ev-header">
+                
+                            <div class="employee-icon">
+                                <span class="fa fa-user" aria-hidden="true"></span>
+                            </div>
+                
+                            <div class="employee-details ev-identity">
+                
+                                <span class="employee-label">
+                                    EMPLOYEE PROFILE
+                                </span>
+                
+                                <div class="employee-name">~' ||
+                                    safe_text(:P1148_NAME) ||
+                                q'~</div>
+                
+                                <div class="employee-number">
+                                    <span class="fa fa-id-badge"
+                                          aria-hidden="true"></span>
+                                    Employee No.
+                                    <strong>~' ||
+                                        safe_text(:P1148_EMPLOYEE_NUMBER) ||
+                                    q'~</strong>
+                                </div>
+                
+                            </div>
+                
+                            <span class="ev-status ~' ||
+                                l_status_class ||
+                            q'~">
+                                <span class="ev-status-dot"></span>~' ||
+                                    l_status ||
+                            q'~</span>
+                
+                        </div>
+                
+                        <!-- Work Information -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-briefcase"
+                                      aria-hidden="true"></span>
+                                <h3>Work Information</h3>
+                            </div>
+                
+                            <div class="ev-grid">
+                    ~';
+                
+                    --------------------------------------------------
+                    -- Work Information Cards
+                    --------------------------------------------------
+                    l_html := l_html ||
+                
+                        info_card(
+                            'Project',
+                            apex_item.text_from_lov(
+                                :P1148_PROJECT_ID,
+                                'LOV-PROJECT',
+                                'Not provided'
+                            )
+                        ) ||
+                
+                        info_card(
+                            'Location',
+                            apex_item.text_from_lov(
+                                :P1148_LOCATION_ID,
+                                'LOV-LOCATION',
+                                'Not provided'
+                            )
+                        ) ||
+                
+                        info_card(
+                            'Department',
+                            apex_item.text_from_lov(
+                                :P1148_DEPARTMENT_ID,
+                                'LOV-DEPARTMENT',
+                                'Not provided'
+                            )
+                        ) ||
+                
+                        info_card(
+                            'Grade',
+                            apex_item.text_from_lov(
+                                :P1148_GRADE_ID,
+                                'LOV-GRADE',
+                                'Not provided'
+                            )
+                        ) ||
+                
+                        info_card(
+                            'Rotation',
+                            l_rotation_name
+                        );
+                
+                    l_html := l_html || q'~
+                            </div>
+                        </section>
+                
+                        <!-- Personal Information -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-user-circle"
+                                      aria-hidden="true"></span>
+                                <h3>Personal Information</h3>
+                            </div>
+                
+                            <div class="ev-grid">
+                    ~';
+                
+                    --------------------------------------------------
+                    -- Personal Information Cards
+                    --------------------------------------------------
+                    l_html := l_html ||
+                
+                        info_card(
+                            'Nationality',
+                            :P1148_NATIONALITY
+                        ) ||
+                
+                        info_card(
+                            'Religion',
+                            :P1148_RELIGION
+                        );
+                
+                    l_html := l_html || q'~
+                            </div>
+                        </section>
+                
+                        <!-- Preferences -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-cog"
+                                      aria-hidden="true"></span>
+                                <h3>Preferences</h3>
+                            </div>
+                
+                            <div class="ev-setting">
+                
+                                <div class="ev-setting-details">
+                                    <strong>Print Timesheet</strong>
+                                    <span>
+                                        Employee timesheet printing preference
+                                    </span>
+                                </div>
+                
+                                <span class="ev-status ~' ||
+                                    l_print_class ||
+                                q'~">~' ||
+                                    l_print_status ||
+                                q'~</span>
+                
+                            </div>
+                
+                        </section>
+                
+                    </div>
+                    ~';
+                
+                    RETURN l_html;
+                
+                END;
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    pageItem P1148_DEPARTMENT_ID (
+        type: hidden
+        layout {
+            sequence: 14
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Department for this record.
+        }
+    )
+
+    pageItem P1148_EMPLOYEE_NUMBER (
+        type: hidden
+        layout {
+            sequence: 11
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Employee Number for this record.
+        }
+    )
+
+    pageItem P1148_ENTITY_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1148_EXPECTED_VERSION (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1148_GRADE_ID (
+        type: hidden
+        layout {
+            sequence: 15
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Grade for this record.
+        }
+    )
+
+    pageItem P1148_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1148_IS_ACTIVE (
+        type: hidden
+        layout {
+            sequence: 16
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Active (Y/N) for this record.
+        }
+    )
+
+    pageItem P1148_LOCATION_ID (
+        type: hidden
+        layout {
+            sequence: 13
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Location for this record.
+        }
+    )
+
+    pageItem P1148_NAME (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Name for this record.
+        }
+    )
+
+    pageItem P1148_NATIONALITY (
+        type: hidden
+        layout {
+            sequence: 17
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Nationality for this record.
+        }
+    )
+
+    pageItem P1148_PRINT_TIMESHEET (
+        type: hidden
+        layout {
+            sequence: 19
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Print Timesheet (Y/N) for this record.
+        }
+    )
+
+    pageItem P1148_PROJECT_ID (
+        type: hidden
+        layout {
+            sequence: 12
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Project for this record.
+        }
+    )
+
+    pageItem P1148_RELIGION (
+        type: hidden
+        layout {
+            sequence: 18
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Religion for this record.
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete or Archive
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Confirm the package-backed delete/archive operation.
+            style: danger
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 50
+        }
+        successMessage {
+            successMessage: Employee operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 49061785184164889
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,DELETE
+        }
+    )
+
+    process delete-employee (
+        name: Delete Employee Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_status varchar2(30); l_message varchar2(4000); BEGIN REFERENCE_API_PKG.delete_reference('EMPLOYEE', :P1148_ENTITY_ID, l_status, l_message); IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF; END;
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 49061357467164888
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+    process initialize-employee-form (
+        name: Initialize Employee Form
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P1148_IDEMPOTENCY_KEY := nvl(:P1148_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                    IF :P1148_ENTITY_ID IS NOT NULL THEN
+                        SELECT NAME, EMPLOYEE_NUMBER, PROJECT_ID, LOCATION_ID, DEPARTMENT_ID, GRADE_ID, IS_ACTIVE, NATIONALITY, RELIGION, PRINT_TIMESHEET, ORA_ROWSCN
+                          INTO :P1148_NAME, :P1148_EMPLOYEE_NUMBER, :P1148_PROJECT_ID, :P1148_LOCATION_ID, :P1148_DEPARTMENT_ID, :P1148_GRADE_ID, :P1148_IS_ACTIVE, :P1148_NATIONALITY, :P1148_RELIGION, :P1148_PRINT_TIMESHEET, :P1148_EXPECTED_VERSION
+                          FROM EMPLOYEE WHERE ID = :P1148_ENTITY_ID;
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 49060512226164888
+        }
+    )
+
+    process save-employee (
+        name: Save Employee Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000); BEGIN
+                    REFERENCE_API_PKG.upsert_reference('EMPLOYEE', :P1148_ENTITY_ID, :P1148_NAME, :P1148_EMPLOYEE_NUMBER, :P1148_PROJECT_ID, :P1148_LOCATION_ID, :P1148_DEPARTMENT_ID, :P1148_GRADE_ID, :P1148_IS_ACTIVE, :P1148_NATIONALITY, :P1148_RELIGION, :P1148_PRINT_TIMESHEET, :P1148_EXPECTED_VERSION, :P1148_IDEMPOTENCY_KEY, l_id, l_status, l_message);
+                    IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001, l_message); END IF;
+                    :P1148_ENTITY_ID := l_id;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 49060920603164888
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+        }
+    )
+
+)

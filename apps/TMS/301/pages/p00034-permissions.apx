@@ -1,0 +1,879 @@
+page 34 (
+    name: Permissions
+    alias: PERMISSIONS
+    title: Permissions
+    pageGroup: @employees
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Permissions
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region filter-region (
+        name: filter region
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region permissions (
+        name: Permissions
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.ID,
+                    e.EMPLOYEE_NUMBER,
+                    e.NAME AS EMPLOYEE_NAME,
+                    p."DATE" AS WORK_DATE,
+                    TO_CHAR(FROM_TIME, 'HH AM') AS FROM_TIME,
+                    TO_CHAR(TO_TIME, 'HH AM') AS TO_TIME,
+                    l.NAME AS LOCATION_NAME,
+                    pt.NAME AS TYPE_NAME,
+                    p.DESCRIPTION,
+                
+                    apex_page.get_url(
+                        p_page   => 1143,
+                        p_items  => 'P1143_ENTITY_ID',
+                        p_values => TO_CHAR(p.ID)
+                    ) AS EDIT_URL,
+                
+                    apex_page.get_url(
+                        p_page   => 143,
+                        p_items  => 'P143_ENTITY_ID',
+                        p_values => TO_CHAR(p.ID)
+                    ) AS VIEW_URL,
+                    CASE 
+                        WHEN p.IS_INSERTED_BY_APEX = '1' THEN 'APEX'
+                        WHEN p.IS_INSERTED_BY_APEX = '0' THEN 'TMS'
+                    END as SOURCE ,
+                
+                    'DELETE' AS DELETE_BUTTON
+                
+                FROM PERMISSION p
+                
+                JOIN EMPLOYEE e
+                    ON e.ID = p.EMPLOYEE_ID
+                
+                LEFT JOIN PERMISSION_TYPE pt
+                    ON pt.ID = p.TYPE_ID
+                
+                LEFT JOIN LOCATION l
+                    ON l.ID = e.LOCATION_ID
+                
+                WHERE :P34_SUBMIT_FLAG = 'Y' 
+                AND
+                (
+                    :P34_EMPLOYEE_CODE IS NULL
+                    OR e.EMPLOYEE_NUMBER = :P34_EMPLOYEE_CODE
+                )
+                
+                AND (
+                    :P34_LOCATION IS NULL
+                    OR e.LOCATION_ID = :P34_LOCATION
+                )
+                
+                AND (
+                    :P34_FROM IS NULL
+                    OR p."DATE" >= TRUNC(TO_DATE(:P34_FROM, 'MM/DD/YYYY'))
+                )
+                
+                AND (
+                    :P34_TO IS NULL
+                    OR p."DATE" < TRUNC(TO_DATE(:P34_TO, 'MM/DD/YYYY')) + 1
+                )
+                
+                ORDER BY p."DATE" DESC
+                ```
+            pageItemsToSubmit: [
+                P34_EMPLOYEE_CODE
+                P34_LOCATION
+                P34_FROM
+                P34_TO
+                P34_SUBMIT_FLAG
+            ]
+        }
+        layout {
+            sequence: 60
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: permission_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadPermissions') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47969689170343179
+        }
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 79
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column DESCRIPTION (
+            type: hidden
+            heading {
+                heading: Description
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 9
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 29
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column FROM_TIME (
+            type: plainText
+            heading {
+                heading: "From "
+            }
+            layout {
+                sequence: 59
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 19
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: "Location "
+            }
+            layout {
+                sequence: 39
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column SOURCE (
+            type: plainText
+            heading {
+                heading: Source
+            }
+            layout {
+                sequence: 99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column TO_TIME (
+            type: plainText
+            heading {
+                heading: "To "
+            }
+            layout {
+                sequence: 69
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TYPE_NAME (
+            type: plainText
+            heading {
+                heading: "Type "
+            }
+            layout {
+                sequence: 7
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column VIEW_URL (
+            type: plainText
+            heading {
+                heading: Details
+            }
+            layout {
+                sequence: 89
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#VIEW_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column WORK_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 49
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 11
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 10
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn FROM_TIME (
+                sequence: 4
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 8
+            )
+
+            displayColumn SOURCE (
+                sequence: 7
+            )
+
+            displayColumn TO_TIME (
+                sequence: 5
+            )
+
+            displayColumn TYPE_NAME (
+                sequence: 6
+            )
+
+            displayColumn VIEW_URL (
+                sequence: 9
+            )
+
+            displayColumn WORK_DATE (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    pageItem P34_EMPLOYEE_CODE (
+        type: selectOne
+        label {
+            label: Employee ID
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-emp-number
+        }
+        layout {
+            sequence: 20
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P34_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P34_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select name , id 
+                from location 
+                ```
+        }
+        layout {
+            sequence: 30
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P34_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: body
+        }
+    )
+
+    pageItem P34_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button create-permissions (
+        buttonName: CREATE_PERMISSIONS
+        label: New Permissions
+        layout {
+            sequence: 10
+            region: @permissions
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1143
+                clearCache: 1143
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_WRITE_SQL('WritePermissions') = 1
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 70
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 60
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--noLeft
+                t-Button--noRight
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_PERMISSION",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("permission_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-permissions-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @permissions
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @permissions
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-value (
+        name: set value
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @submit
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @permissions
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P34_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction set-value_1 (
+        name: set value
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @permissions
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P34_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P34_EMPLOYEE_CODE
+                    P34_LOCATION
+                    P34_FROM
+                    P34_TO
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    process delete-permission (
+        name: DELETE_PERMISSION
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'PERMISSION';
+                BEGIN
+                    DELETE_PKG.delete_permission(
+                        p_id => apex_application.g_x01
+                    );
+                
+                    AUDIT_PKG.record_event('REFERENCE_PERMISSION_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                apex_json.open_object;
+                apex_json.write('msg', 'ok') ;
+                apex_json.close_object;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 48786830611747831
+        }
+    )
+
+)

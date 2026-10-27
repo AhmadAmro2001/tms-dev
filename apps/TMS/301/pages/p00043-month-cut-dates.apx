@@ -1,0 +1,282 @@
+page 43 (
+    name: Month Cut Dates
+    alias: MONTH-CUT-DATES
+    title: Month Cut Dates
+    pageGroup: @time-management
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Month Cut Dates
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region month-cut-dates (
+        name: Month Cut Dates
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery: select m.ID, m.MONTH, m.YEAR, m.CUT_DATE, l.NAME AS LOCATION_NAME, apex_page.get_url(p_page => 1146, p_items => 'P1146_ENTITY_ID', p_values => to_char(m.ID)) AS EDIT_URL from MONTH_CUT_DATE m join LOCATION l on l.ID=m.LOCATION_ID where m.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':'))) order by m.YEAR desc, m.MONTH desc
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47981057064343225
+        }
+
+        column CUT_DATE (
+            type: plainText
+            heading {
+                heading: Cut Date
+            }
+            layout {
+                sequence: 4
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 6
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 5
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column MONTH (
+            type: plainText
+            heading {
+                heading: Month
+            }
+            layout {
+                sequence: 2
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column YEAR (
+            type: plainText
+            heading {
+                heading: Year
+            }
+            layout {
+                sequence: 3
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CUT_DATE (
+                sequence: 4
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 5
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 3
+            )
+
+            displayColumn MONTH (
+                sequence: 1
+            )
+
+            displayColumn YEAR (
+                sequence: 2
+            )
+
+        )
+
+    )
+
+    button create-month-cut-dates (
+        buttonName: CREATE_MONTH_CUT_DATES
+        label: Create Month Cut Dates
+        layout {
+            sequence: 10
+            region: @month-cut-dates
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1146
+                clearCache: 1146
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    dynamicAction refresh-month-cut-dates-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @month-cut-dates
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @month-cut-dates
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)

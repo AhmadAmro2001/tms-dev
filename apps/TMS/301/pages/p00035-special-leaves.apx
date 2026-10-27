@@ -1,0 +1,848 @@
+page 35 (
+    name: Special Leaves
+    alias: SPECIAL-LEAVES
+    title: Special Leaves
+    pageGroup: @employees
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Special Leaves
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region filter-region (
+        name: filter region
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region special-leaves (
+        name: Special Leaves
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                    s.ID, 
+                    e.EMPLOYEE_NUMBER, 
+                    e.NAME AS EMPLOYEE_NAME, 
+                    s.FROM_DATE,
+                    s.TO_DATE, 
+                    -- TO_CHAR(s.FROM_DATE, 'HH AM') AS FROM_DATE,
+                    -- TO_CHAR(s.TO_DATE, 'HH AM') AS TO_DATE,
+                    l.name as location_name,
+                    d.name as department_name,
+                    st.NAME AS TYPE_NAME, 
+                    s.IS_INSERTED_BY_APEX, 
+                    apex_page.get_url(p_page => 1144, 
+                    p_items => 'P1144_ENTITY_ID', p_values => to_char(s.ID)) AS EDIT_URL ,
+                    'delete' as DELETE_BUTTON
+                    from SPECIAL_LEAVE s 
+                    join EMPLOYEE e 
+                    on e.ID=s.EMPLOYEE_ID 
+                    left join SPECIAL_LEAVE_TYPE st 
+                    on st.ID=s.TYPE_ID 
+                
+                    left JOIN LOCATION l
+                    ON l.ID = e.LOCATION_ID
+                    LEFT JOIN DEPARTMENT d
+                    ON d.id = e.DEPARTMENT_ID
+                    where e.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':'))) 
+                    and :P35_SUBMIT_FLAG = 'Y' 
+                AND
+                (
+                    :P35_EMPLOYEE_CODE IS NULL
+                    OR e.EMPLOYEE_NUMBER = :P35_EMPLOYEE_CODE
+                )
+                
+                AND (
+                    :P35_LOCATION IS NULL
+                    OR e.LOCATION_ID = :P35_LOCATION
+                )
+                
+                AND (
+                    :P35_FROM IS NULL
+                    OR s."FROM_DATE" >= TRUNC(TO_DATE(:P35_FROM, 'MM/DD/YYYY'))
+                )
+                
+                AND (
+                    :P35_TO IS NULL
+                    OR s."FROM_DATE" < TRUNC(TO_DATE(:P35_TO, 'MM/DD/YYYY')) + 1
+                )
+                AND (
+                    :P35_DEPARTMENT IS NULL
+                    OR e.DEPARTMENT_ID = :P35_DEPARTMENT
+                )
+                    order by s.FROM_DATE desc
+                ```
+            pageItemsToSubmit: [
+                P35_EMPLOYEE_CODE
+                P35_LOCATION
+                P35_FROM
+                P35_SUBMIT_FLAG
+                P35_TO
+                P35_DEPARTMENT
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: special_leave_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadVacations') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47971188992343180
+        }
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 78
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DEPARTMENT_NAME (
+            type: plainText
+            heading {
+                heading: "Department "
+            }
+            layout {
+                sequence: 68
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 8
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 28
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column FROM_DATE (
+            type: plainText
+            heading {
+                heading: "From "
+            }
+            layout {
+                sequence: 38
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 18
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column IS_INSERTED_BY_APEX (
+            type: plainText
+            heading {
+                heading: Source
+            }
+            layout {
+                sequence: 7
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: "Location "
+            }
+            layout {
+                sequence: 58
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TO_DATE (
+            type: plainText
+            heading {
+                heading: "To "
+            }
+            layout {
+                sequence: 48
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column TYPE_NAME (
+            type: plainText
+            heading {
+                heading: Type
+            }
+            layout {
+                sequence: 6
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 9
+            )
+
+            displayColumn DEPARTMENT_NAME (
+                sequence: 3
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 8
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn FROM_DATE (
+                sequence: 4
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 7
+            )
+
+            displayColumn TO_DATE (
+                sequence: 5
+            )
+
+            displayColumn TYPE_NAME (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+    pageItem P35_DEPARTMENT (
+        type: selectList
+        label {
+            label: Department
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select name , id
+                from department
+                ```
+        }
+        layout {
+            sequence: 50
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P35_EMPLOYEE_CODE (
+        type: selectOne
+        label {
+            label: Employee ID
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-emp-number
+        }
+        layout {
+            sequence: 10
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P35_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P35_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select name , id 
+                from location 
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P35_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: body
+        }
+    )
+
+    pageItem P35_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button create-special-leaves (
+        buttonName: CREATE_SPECIAL_LEAVES
+        label: Create Special Leaves
+        layout {
+            sequence: 10
+            region: @special-leaves
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1144
+                clearCache: 1144
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_WRITE_SQL('WriteVacations') = 1
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 70
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 60
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction delete (
+        name: delete
+        execution {
+            sequence: 40
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_SPECIAL_LEAVE",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("special_leave_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-special-leaves-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @special-leaves
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @special-leaves
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-value (
+        name: "set value "
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @submit
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @special-leaves
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P35_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction set-value_1 (
+        name: "set value "
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @special-leaves
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P35_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P35_EMPLOYEE_CODE
+                    P35_LOCATION
+                    P35_FROM
+                    P35_SUBMIT_FLAG
+                    P35_DEPARTMENT
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    process delete-special-leave (
+        name: DELETE_SPECIAL_LEAVE
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'SPECIAL_LEAVE';
+                BEGIN
+                    DELETE_PKG.delete_special_leaves(
+                        p_id => apex_application.g_x01
+                    );
+                    AUDIT_PKG.record_event('REFERENCE_SPECIAL_LEAVE_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                apex_json.open_object;
+                apex_json.write('msg', 'ok') ;
+                apex_json.close_object;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 50071694560710736
+        }
+    )
+
+)

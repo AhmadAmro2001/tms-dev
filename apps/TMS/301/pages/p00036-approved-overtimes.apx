@@ -1,0 +1,878 @@
+page 36 (
+    name: Approved Overtimes
+    alias: APPROVED-OVERTIMES
+    title: Approved Overtimes
+    pageGroup: @employees
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region approved-overtimes (
+        name: Approved Overtimes reprot
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                
+                SELECT
+                    o.ID,
+                    e.EMPLOYEE_NUMBER,
+                    e.NAME AS EMPLOYEE_NAME,
+                    o."DATE" AS WORK_DATE,
+                
+                    CASE
+                        WHEN o.IS_INSERTED_BY_APEX = 1 THEN 'APEX'
+                        ELSE 'N/A'
+                    END AS SOURCE,
+                
+                    -- Convert FROM_TIME from UTC to Egypt local time
+                    TO_CHAR(
+                        FROM_TZ(
+                            CAST(o.FROM_TIME AS TIMESTAMP),
+                            'UTC'
+                        ) AT TIME ZONE 'Africa/Cairo',
+                        'HH24:MI'
+                    ) AS FROM_TIME,
+                
+                    -- Convert TO_TIME from UTC to Egypt local time
+                    TO_CHAR(
+                        FROM_TZ(
+                            CAST(o.TO_TIME AS TIMESTAMP),
+                            'UTC'
+                        ) AT TIME ZONE 'Africa/Cairo',
+                        'HH24:MI'
+                    ) AS TO_TIME,
+                
+                    l.NAME,
+                    o.CREATION_DATE,
+                
+                    apex_page.get_url(
+                        p_page   => 1147,
+                        p_items  => 'P1147_ENTITY_ID',
+                        p_values => TO_CHAR(o.ID)
+                    ) AS EDIT_URL,
+                
+                    apex_page.get_url(
+                        p_page   => 147,
+                        p_items  => 'P147_ENTITY_ID',
+                        p_values => TO_CHAR(o.ID)
+                    ) AS DETAILS,
+                
+                    'Delete' AS DELETE_BUTTON
+                
+                FROM APPROVED_OVERTIME o
+                
+                JOIN EMPLOYEE e
+                    ON e.ID = o.EMPLOYEE_ID
+                
+                LEFT JOIN LOCATION l
+                    ON l.ID = e.LOCATION_ID
+                
+                WHERE
+                    :P36_SUBMIT_FLAG = 'Y'
+                
+                    AND (
+                        :P36_EMPLOYEE_CODE IS NULL
+                        OR e.EMPLOYEE_NUMBER = :P36_EMPLOYEE_CODE
+                    )
+                
+                    AND (
+                        :P36_LOCATION IS NULL
+                        OR e.LOCATION_ID = :P36_LOCATION
+                    )
+                
+                    AND (
+                        :P36_FROM IS NULL
+                        OR o."DATE" >= TRUNC(
+                            TO_DATE(:P36_FROM, 'MM/DD/YYYY')
+                        )
+                    )
+                
+                    AND (
+                        :P36_TO IS NULL
+                        OR o."DATE" < TRUNC(
+                            TO_DATE(:P36_TO, 'MM/DD/YYYY')
+                        ) + 1
+                    )
+                
+                ORDER BY
+                    o."DATE" DESC;
+                
+                ```
+            pageItemsToSubmit: [
+                P36_EMPLOYEE_CODE
+                P36_LOCATION
+                P36_FROM
+                P36_TO
+                P36_SUBMIT_FLAG
+            ]
+        }
+        layout {
+            sequence: 70
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: approved_time_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadOvertime') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47972501487343181
+        }
+
+        column CREATION_DATE (
+            type: plainText
+            heading {
+                heading: Creation Date
+            }
+            layout {
+                sequence: 68
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 88
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column DETAILS (
+            type: plainText
+            heading {
+                heading: Details
+            }
+            layout {
+                sequence: 78
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#DETAILS!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 8
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <a href="#EDIT_URL!ATTR#" class="ig-action-btn" aria-label="Edit" title="Edit"><span class="fa fa-edit" aria-hidden="true"></span> Edit</a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 28
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column FROM_TIME (
+            type: plainText
+            heading {
+                heading: From
+            }
+            layout {
+                sequence: 5
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 18
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 58
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column SOURCE (
+            type: plainText
+            heading {
+                heading: Source
+            }
+            layout {
+                sequence: 48
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TO_TIME (
+            type: plainText
+            heading {
+                heading: To
+            }
+            layout {
+                sequence: 6
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column WORK_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 38
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CREATION_DATE (
+                sequence: 8
+            )
+
+            displayColumn DELETE_BUTTON (
+                sequence: 11
+            )
+
+            displayColumn DETAILS (
+                sequence: 9
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 10
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn FROM_TIME (
+                sequence: 4
+            )
+
+            displayColumn NAME (
+                sequence: 7
+            )
+
+            displayColumn SOURCE (
+                sequence: 6
+            )
+
+            displayColumn TO_TIME (
+                sequence: 5
+            )
+
+            displayColumn WORK_DATE (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    region breadcrumb (
+        name: Approved Overtimes
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region filter-region (
+        name: filter region
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    pageItem P36_EMPLOYEE_CODE (
+        type: selectOne
+        label {
+            label: Employee Code
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-emp-number
+        }
+        layout {
+            sequence: 10
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P36_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P36_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT NAME , ID
+                FROM LOCATION ;
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P36_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: body
+        }
+    )
+
+    pageItem P36_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button create-approved-overtimes (
+        buttonName: CREATE_APPROVED_OVERTIMES
+        label: Create Approved Overtimes
+        layout {
+            sequence: 10
+            region: @approved-overtimes
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1147
+                clearCache: 1147
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: (AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')) and AUTH_PKG.CAN_WRITE_SQL('WriteVacations') = 1
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 60
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 50
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction delete (
+        name: DELETE
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action delete-approved-time (
+            name: delete
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_APPROVED_TIME",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("approved_time_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @submit
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @approved-overtimes
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P36_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: New
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @approved-overtimes
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P36_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P36_EMPLOYEE_CODE
+                    P36_LOCATION
+                    P36_FROM
+                    P36_TO
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    dynamicAction refresh-approved-overtimes-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @approved-overtimes
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @approved-overtimes
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process new (
+        name: DELETE_APPROVED_TIME
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'OVERTIME';
+                BEGIN
+                    DELETE_PKG.delete_approved_time(
+                        p_id => apex_application.g_x01
+                    );
+                    AUDIT_PKG.record_event('REFERENCE_OVERTIME_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                apex_json.open_object;
+                apex_json.write('msg', 'ok') ;
+                apex_json.close_object;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 53193849236531403
+        }
+    )
+
+)

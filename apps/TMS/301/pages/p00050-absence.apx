@@ -1,0 +1,751 @@
+page 50 (
+    name: Absence
+    alias: ABSENCE
+    title: Absence
+    pageGroup: @reports
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region absence-report (
+        name: Absence
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                -- Oracle APEX Page 50 absence report.
+                -- The June 2026 attendance for employee 1837 must be present in TMS."TRANSACTION"
+                -- before comparing this report with the old TMS output.
+                WITH params AS (
+                    SELECT TRUNC(CAST(APEX_SESSION_STATE.GET_TIMESTAMP('P50_FROM') AS DATE)) AS from_day,
+                           TRUNC(CAST(APEX_SESSION_STATE.GET_TIMESTAMP('P50_TO') AS DATE)) AS to_day,
+                           APEX_SESSION_STATE.GET_NUMBER('P50_EMPLOYEE_ID') AS employee_id,
+                           APEX_SESSION_STATE.GET_NUMBER('P50_LOCATION_ID') AS location_id,
+                           APEX_SESSION_STATE.GET_NUMBER('P50_GRADE_ID') AS grade_id
+                    FROM dual
+                ),
+                report_days AS (
+                    SELECT p.from_day + LEVEL - 1 AS work_date
+                    FROM params p
+                    WHERE p.from_day IS NOT NULL
+                      AND p.to_day IS NOT NULL
+                      AND p.from_day <= p.to_day
+                      AND TRUNC(p.from_day, 'MM') = TRUNC(p.to_day, 'MM')
+                      AND p.from_day + LEVEL - 1 < TRUNC(SYSTIMESTAMP)
+                    CONNECT BY LEVEL <= p.to_day - p.from_day + 1
+                ),
+                employee_days AS (
+                    SELECT e.id AS employee_id,
+                           e.employee_number,
+                           e.name AS employee_name,
+                           e.location_id,
+                           e.nationality,
+                           e.religion,
+                           l.name AS location_name,
+                           d.name AS department_name,
+                           rd.work_date
+                    FROM employee e
+                    CROSS JOIN report_days rd
+                    CROSS JOIN params p
+                    LEFT JOIN location l ON l.id = e.location_id
+                    LEFT JOIN department d ON d.id = e.department_id
+                    WHERE e.is_active = '1'
+                      AND (p.employee_id IS NULL OR e.id = p.employee_id)
+                      AND (p.location_id IS NULL OR e.location_id = p.location_id)
+                      AND (p.grade_id IS NULL OR e.grade_id = p.grade_id)
+                      AND AUTH_PKG.can_access_location_sql(e.location_id) = 1
+                ),
+                rotation_rows AS (
+                    SELECT ed.*,
+                           rp.id AS rotation_id,
+                           rp.work_type,
+                           CASE
+                               WHEN rp.id IS NULL OR rp.days IS NULL OR rp.days = 0 THEN NULL
+                               ELSE MOD(
+                                    CASE
+                                        WHEN ed.work_date - TRUNC(rp.start_date) < 0
+                                            THEN ed.work_date - TRUNC(rp.start_date) + 7
+                                        ELSE ed.work_date - TRUNC(rp.start_date)
+                                    END,
+                                    rp.days
+                               ) + 1
+                           END AS rotation_day_number
+                    FROM employee_days ed
+                    OUTER APPLY (
+                        SELECT rh.rotation_id
+                        FROM rotation_history rh
+                        WHERE rh.employee_id = ed.employee_id
+                          AND rh.started < CAST(ed.work_date + 1 AS TIMESTAMP)
+                        ORDER BY rh.started DESC, rh.id DESC
+                        FETCH FIRST 1 ROW ONLY
+                    ) rh
+                    LEFT JOIN rotation_plan rp ON rp.id = rh.rotation_id
+                ),
+                scheduled AS (
+                    SELECT r.*,
+                           s.id AS shift_id,
+                           s.name AS shift_name,
+                           s.is_off,
+                           s.duration AS shift_duration,
+                           CAST(r.work_date AS TIMESTAMP)
+                             + NUMTODSINTERVAL(
+                                   EXTRACT(HOUR FROM s.from_date) * 3600
+                                 + EXTRACT(MINUTE FROM s.from_date) * 60
+                                 + EXTRACT(SECOND FROM s.from_date),
+                                   'SECOND'
+                               ) AS shift_start
+                    FROM rotation_rows r
+                    LEFT JOIN rotation_day rd
+                      ON rd.rotation_id = r.rotation_id
+                     AND rd.day = r.rotation_day_number
+                    OUTER APPLY (
+                        SELECT a.shift_id
+                        FROM alternate_shift a
+                        WHERE a.employee_id = r.employee_id
+                          AND TRUNC(a."DATE") = r.work_date
+                        ORDER BY a.id DESC
+                        FETCH FIRST 1 ROW ONLY
+                    ) alt
+                    LEFT JOIN shift s
+                      ON s.id = COALESCE(alt.shift_id, rd.shift_id)
+                ),
+                shift_windows AS (
+                    SELECT s.*,
+                           s.shift_start
+                             - NUMTODSINTERVAL((24 - s.shift_duration) / 2, 'HOUR')
+                               AS window_start,
+                           s.shift_start
+                             + NUMTODSINTERVAL(
+                                   s.shift_duration + (24 - s.shift_duration) / 2,
+                                   'HOUR'
+                               ) AS window_end
+                    FROM scheduled s
+                )
+                SELECT w.employee_id AS emp_id,
+                       w.employee_number AS emp_code,
+                       w.employee_name AS name,
+                       w.work_date AS absence_date,
+                       w.shift_name AS shift,
+                       CASE
+                           WHEN sl.special_reason IS NOT NULL THEN
+                               CASE
+                                   WHEN UPPER(TRIM(sl.special_reason)) IN ('RH', 'REST HOURS')
+                                       THEN 'Rest Hours'
+                                   WHEN UPPER(TRIM(sl.special_reason)) IN ('U', 'UNPAID', 'UNPAID ABSENCE')
+                                       THEN 'Unpaid Absence'
+                                   ELSE sl.special_reason
+                               END
+                           WHEN vac.vacation_code = 'H' THEN 'Annual Leave'
+                           WHEN vac.vacation_code = 'C' THEN 'Casual'
+                           WHEN vac.vacation_code = 'S' THEN 'Sick'
+                           WHEN vac.vacation_code IS NOT NULL THEN vac.vacation_code
+                           WHEN trn.training_id IS NOT NULL THEN 'Training'
+                           WHEN mis.mission_id IS NOT NULL THEN 'Business Trip'
+                           WHEN perm.permission_type = 'Company' THEN 'Company Permission'
+                           WHEN perm.permission_type = 'Personal' THEN 'Personal Permission'
+                           ELSE 'Unpaid Absence'
+                       END AS reason,
+                       w.department_name AS department,
+                       w.location_name AS location
+                FROM shift_windows w
+                OUTER APPLY (
+                    SELECT st.name AS special_reason
+                    FROM special_leave sl
+                    JOIN special_leave_type st ON st.id = sl.type_id
+                    WHERE sl.employee_id = w.employee_id
+                      AND sl.from_date < CAST(w.work_date + 1 AS TIMESTAMP)
+                      AND sl.to_date >= CAST(w.work_date AS TIMESTAMP)
+                    ORDER BY sl.id
+                    FETCH FIRST 1 ROW ONLY
+                ) sl
+                OUTER APPLY (
+                    SELECT vt.code AS vacation_code
+                    FROM vacation v
+                    JOIN vacation_type vt ON vt.id = v.type_id
+                    WHERE v.employee_id = w.employee_id
+                      AND v.from_date < CAST(w.work_date + 1 AS TIMESTAMP)
+                      AND v.to_date >= CAST(w.work_date AS TIMESTAMP)
+                    ORDER BY v.id
+                    FETCH FIRST 1 ROW ONLY
+                ) vac
+                OUTER APPLY (
+                    SELECT tr.id AS training_id
+                    FROM training tr
+                    WHERE tr.employee_id = w.employee_id
+                      AND tr.from_date < CAST(w.work_date + 1 AS TIMESTAMP)
+                      AND tr.to_date >= CAST(w.work_date AS TIMESTAMP)
+                    ORDER BY tr.id
+                    FETCH FIRST 1 ROW ONLY
+                ) trn
+                OUTER APPLY (
+                    SELECT m.id AS mission_id
+                    FROM mission m
+                    WHERE m.employee_id = w.employee_id
+                      AND m.from_date < CAST(w.work_date + 1 AS TIMESTAMP)
+                      AND m.to_date >= CAST(w.work_date AS TIMESTAMP)
+                    ORDER BY m.id
+                    FETCH FIRST 1 ROW ONLY
+                ) mis
+                OUTER APPLY (
+                    SELECT pt.name AS permission_type
+                    FROM permission pm
+                    JOIN permission_type pt ON pt.id = pm.type_id
+                    WHERE pm.employee_id = w.employee_id
+                      AND TRUNC(pm."DATE") = w.work_date
+                    ORDER BY pm.id
+                    FETCH FIRST 1 ROW ONLY
+                ) perm
+                WHERE :P50_SUBMIT_FLAG = 'Y'
+                  AND    w.shift_id IS NOT NULL
+                  AND w.shift_duration BETWEEN 0 AND 24
+                  AND NVL(w.is_off, '0') <> '1'
+                
+                  -- Both check-in and check-out must be absent.
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM "TRANSACTION" t
+                      WHERE t.employee_id = w.employee_id
+                        AND t."DATE" >= FROM_TZ(CAST(w.work_date - 2 AS TIMESTAMP), 'UTC')
+                        AND t."DATE" <  FROM_TZ(CAST(w.work_date + 3 AS TIMESTAMP), 'UTC')
+                        AND CAST(APP_CONFIG_PKG.TO_LOCAL_TIMESTAMP(t."DATE") AS TIMESTAMP)
+                              BETWEEN w.window_start AND w.window_end
+                  )
+                
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM official_holiday h
+                      WHERE h.from_date < CAST(w.work_date + 1 AS TIMESTAMP)
+                        AND h.to_date >= CAST(w.work_date AS TIMESTAMP)
+                        AND UPPER(h.target_nationality) IN (UPPER(w.nationality), 'ALL')
+                        AND UPPER(h.target_religion) IN (UPPER(w.religion), 'ALL')
+                        AND UPPER(h.work_type) IN (UPPER(w.work_type), 'ALL')
+                  )
+                ORDER BY w.work_date DESC, w.employee_id;
+                
+                
+                ```
+            pageItemsToSubmit: [
+                P50_EMPLOYEE_ID
+                P50_FROM
+                P50_TO
+                P50_LOCATION_ID
+                P50_GRADE_ID
+                P50_SUBMIT_FLAG
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadAbsence') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        advanced {
+            savedReportMappingIdentifier: 81162121690828112
+        }
+
+        column ABSENCE_DATE (
+            type: plainText
+            heading {
+                heading: Absence Date
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column DEPARTMENT (
+            type: plainText
+            heading {
+                heading: Department
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column EMP_CODE (
+            type: plainText
+            heading {
+                heading: Emp Code
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column EMP_ID (
+            type: hidden
+            heading {
+                heading: Emp Id
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column REASON (
+            type: plainText
+            heading {
+                heading: Reason
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SHIFT (
+            type: plainText
+            heading {
+                heading: Shift
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ABSENCE_DATE (
+                sequence: 4
+            )
+
+            displayColumn DEPARTMENT (
+                sequence: 7
+            )
+
+            displayColumn EMP_CODE (
+                sequence: 2
+            )
+
+            displayColumn EMP_ID (
+                sequence: 1
+            )
+
+            displayColumn LOCATION (
+                sequence: 8
+            )
+
+            displayColumn NAME (
+                sequence: 3
+            )
+
+            displayColumn REASON (
+                sequence: 6
+            )
+
+            displayColumn SHIFT (
+                sequence: 5
+            )
+
+        )
+
+    )
+
+    region breadcrumb (
+        name: Absence
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region new (
+        name: New
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    pageItem P50_EMPLOYEE_ID (
+        type: selectOne
+        label {
+            label: Employee ID
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @employee
+        }
+        layout {
+            sequence: 20
+            region: @new
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P50_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @new
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P50_GRADE_ID (
+        type: selectList
+        label {
+            label: Grade
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @grade
+        }
+        layout {
+            sequence: 40
+            region: @new
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P50_LOCATION_ID (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+        }
+        layout {
+            sequence: 30
+            region: @new
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P50_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: body
+        }
+    )
+
+    pageItem P50_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @new
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button apply-absence-filters (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 80
+            region: @new
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 90
+            region: @new
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction reset (
+        name: reset
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @absence-report
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P50_EMPLOYEE_ID
+                    P50_LOCATION_ID
+                    P50_GRADE_ID
+                    P50_FROM
+                    P50_TO
+                ]
+            }
+            execution {
+                sequence: 40
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P50_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction submit (
+        name: Submit
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @apply-absence-filters
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @absence-report
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P50_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)

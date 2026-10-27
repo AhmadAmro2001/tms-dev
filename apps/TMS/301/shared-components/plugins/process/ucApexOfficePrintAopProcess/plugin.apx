@@ -1,0 +1,26 @@
+plugin ucApexOfficePrintAopProcess (
+    name: UC - APEX Office Print (AOP) - Process
+    staticId: BE.APEXRND.AOP
+    type: process
+    component {
+        supports: pageProcesses
+    }
+    callbacks {
+        apiInterface: function
+        executionFunctionProcedureName: aop_api_pkg.f_process_aop
+    }
+    advanced {
+        substituteAttributeValues: true
+    }
+    information {
+        version: 25.1.2
+        aboutUrl: https://www.apexofficeprint.com
+        helpText:
+            ```
+            APEX Office Print (AOP) is created by United Codes to facilitate exporting data and printing documents in Oracle Application Express (APEX) based on an Office document (Word, Excel, PowerPoint) or HTML, Markdown, CSV, or Text. This plugin can only be used to print to AOP and is copyrighted by APEX R&D and United Codes. If you have any questions please contact support@apexofficeprint.com.
+            We hope you enjoy AOP!
+            
+            Note that your page attribute "Reload on Submit" need to be set to "Always" and NOT "Only for Success" to use the process type plugin in the After Processing section. If you want to keep "Only for Success", please specify the process before header or use the APEX Office Print (AOP) Dynamic Action plugin.
+            ```
+    }
+)

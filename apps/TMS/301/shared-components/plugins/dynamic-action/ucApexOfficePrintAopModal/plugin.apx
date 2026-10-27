@@ -1,0 +1,54 @@
+plugin ucApexOfficePrintAopModal (
+    name: UC - APEX Office Print (AOP) - Modal
+    staticId: UNITEDCODES_AOP_DOWNLOAD
+    type: dynamicAction
+    component {
+        standardAttributes: [
+            forRegion
+            forJquerySelector
+            initJavascriptCodeAttr
+        ]
+    }
+    callbacks {
+        apiInterface: function
+        renderProcedureName: aop_modal_pkg.render
+        ajaxProcedureName: aop_modal_pkg.ajax
+    }
+    advanced {
+        category: execute
+        substituteAttributeValues: true
+    }
+    css {
+        fileUrls: #PLUGIN_FILES#uc.aopdownload.min.css
+    }
+    javaScript {
+        fileUrls: [
+            #IMAGE_PREFIX#libraries/apex/#MIN_DIRECTORY#widget.datepicker#MIN#.js
+            #IMAGE_PREFIX#libraries/apex/#MIN_DIRECTORY#widget.timepicker#MIN#.js
+            #PLUGIN_FILES#uc.aopdownload.min.js
+            #PLUGIN_FILES#uc.aopdownloadCommon.min.js
+        ]
+    }
+    information {
+        version: 25.1.2
+        aboutUrl: https://www.apexofficeprint.com
+        helpText:
+            ```
+            APEX Office Print (AOP) is created by United Codes to facilitate exporting data and printing documents in Oracle Application Express (APEX) based on an Office document (Word, Excel, Powerpoint) or HTML, Markdown, CSV, or Text. This plugin can only be used to print to AOP and is copyrighted by APEX R&D and United Codes. If you have any questions please contact support@apexofficeprint.com.
+            We hope you enjoy AOP!
+            ```
+    }
+
+    standardAttributeConfig (
+        name: hasInitJavaScriptCodeAttribute
+        default {
+            value:
+                ```
+                function( pOptions ) {
+                  return pOptions;
+                }
+                ```
+        }
+    )
+
+)

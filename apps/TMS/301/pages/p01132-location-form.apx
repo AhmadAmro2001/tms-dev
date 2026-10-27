@@ -1,0 +1,311 @@
+page 1132 (
+    name: Location Form
+    alias: LOCATION-FORM
+    title: Location Form
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region form-body (
+        name: Location Form
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P1132_ENTITY_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1132_EXPECTED_VERSION (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1132_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1132_NAME (
+        type: textField
+        label {
+            label: Name
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Name for this record.
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+        config {
+            buildOption: @commented-out
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete or Archive
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Confirm the package-backed delete/archive operation.
+            style: danger
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 70
+        }
+        successMessage {
+            successMessage: Location operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 48341897265205496
+        }
+    )
+
+    process close-dialog_1 (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 30
+        }
+        successMessage {
+            successMessage: Location operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 48796037425812105
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,DELETE
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process close-dialog_2 (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 80
+        }
+        successMessage {
+            successMessage: Location operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 48796104372812106
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,DELETE
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process delete-location (
+        name: Delete Location Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_status varchar2(30); l_message varchar2(4000); BEGIN REFERENCE_API_PKG.delete_reference('LOCATION', :P1132_ENTITY_ID, l_status, l_message); IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF; END;
+        }
+        execution {
+            sequence: 50
+        }
+        advanced {
+            executionMappingIdentifier: 48341741892205496
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+    process initialize-location-form (
+        name: Initialize Location Form
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P1132_IDEMPOTENCY_KEY := nvl(:P1132_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                    IF :P1132_ENTITY_ID IS NOT NULL THEN
+                        SELECT NAME, ORA_ROWSCN INTO :P1132_NAME, :P1132_EXPECTED_VERSION FROM LOCATION WHERE ID = :P1132_ENTITY_ID;
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 48341565429205496
+        }
+    )
+
+    process save-location (
+        name: Save Location Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000); BEGIN
+                    REFERENCE_API_PKG.upsert_reference('LOCATION', :P1132_ENTITY_ID, :P1132_NAME, null, null, null, null, null, null, null, null, null, :P1132_EXPECTED_VERSION, :P1132_IDEMPOTENCY_KEY, l_id, l_status, l_message);
+                    IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001, l_message); END IF;
+                    :P1132_ENTITY_ID := l_id;
+                END;
+                ```
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 48341675726205496
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+        }
+    )
+
+)

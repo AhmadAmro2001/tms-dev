@@ -1,0 +1,793 @@
+page 1126 (
+    name: Device Details
+    alias: DEVICE-FORM-VIEW
+    title: Device Details
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region device-details (
+        name: Device Details
+        type: dynamicContent
+        source {
+            plsqlFunctionBody:
+                ```plsql
+                
+                DECLARE
+                    l_html               CLOB;
+                
+                    -- Device Information
+                    l_device_name        DEVICE.NAME%TYPE;
+                    l_ip                 VARCHAR2(200);
+                    l_port               VARCHAR2(100);
+                    l_device_type        VARCHAR2(200);
+                    l_location_name      VARCHAR2(500);
+                    l_last_downloaded    VARCHAR2(100);
+                    l_last_transaction   VARCHAR2(100);
+                    l_key_status         VARCHAR2(30);
+                
+                    --------------------------------------------------
+                    -- Escape HTML
+                    --------------------------------------------------
+                    FUNCTION safe_text(
+                        p_value IN VARCHAR2
+                    ) RETURN VARCHAR2
+                    IS
+                    BEGIN
+                        RETURN apex_escape.html(
+                            NVL(TRIM(p_value), 'Not provided')
+                        );
+                    END;
+                
+                    --------------------------------------------------
+                    -- Reusable Information Card
+                    --------------------------------------------------
+                    FUNCTION info_card(
+                        p_label IN VARCHAR2,
+                        p_value IN VARCHAR2
+                    ) RETURN VARCHAR2
+                    IS
+                    BEGIN
+                        RETURN
+                            '<div class="ev-field">' ||
+                                '<span class="ev-field-label">' ||
+                                    apex_escape.html(p_label) ||
+                                '</span>' ||
+                                '<span class="ev-field-value">' ||
+                                    safe_text(p_value) ||
+                                '</span>' ||
+                            '</div>';
+                    END;
+                
+                BEGIN
+                
+                    --------------------------------------------------
+                    -- Security Checks
+                    --------------------------------------------------
+                    IF NOT AUTH_PKG.has_role('1')
+                       OR NOT AUTH_PKG.can_write('Devices') THEN
+                
+                        RAISE_APPLICATION_ERROR(
+                            -20140,
+                            'Device administration requires role 1 and Devices write access'
+                        );
+                
+                    END IF;
+                
+                    IF NOT AUTH_PKG.can_read('Devices') THEN
+                
+                        RAISE_APPLICATION_ERROR(
+                            -20140,
+                            'Device read access is not permitted'
+                        );
+                
+                    END IF;
+                
+                    --------------------------------------------------
+                    -- Check Device Record
+                    --------------------------------------------------
+                    IF :P1126_DEVICE_ID IS NULL THEN
+                        RETURN
+                            '<div class="employee-not-found">
+                                No device selected.
+                            </div>';
+                    END IF;
+                
+                    --------------------------------------------------
+                    -- Get Device Information
+                    --------------------------------------------------
+                    BEGIN
+                
+                        SELECT
+                            d.NAME,
+                            d.IP,
+                            TO_CHAR(d.PORT),
+                
+                            --------------------------------------------------
+                            -- Device Type Mapping
+                            --------------------------------------------------
+                            CASE d.TYPE
+                                WHEN 0 THEN 'IN/OUT'
+                                WHEN 1 THEN 'IN'
+                                WHEN 2 THEN 'OUT'
+                                ELSE 'Unknown'
+                            END,
+                
+                            NVL(
+                                l.NAME,
+                                'Not assigned'
+                            ),
+                
+                            TO_CHAR(
+                                d.LAST_DOWNLOADED,
+                                'DD Mon YYYY, HH24:MI',
+                                'NLS_DATE_LANGUAGE=ENGLISH'
+                            ),
+                
+                            TO_CHAR(
+                                d.LAST_TRANSACTION,
+                                'DD Mon YYYY, HH24:MI',
+                                'NLS_DATE_LANGUAGE=ENGLISH'
+                            ),
+                
+                            CASE
+                                WHEN d.COMMUNICATION_KEY IS NOT NULL
+                                THEN 'Configured'
+                                ELSE 'Not Configured'
+                            END
+                
+                        INTO
+                            l_device_name,
+                            l_ip,
+                            l_port,
+                            l_device_type,
+                            l_location_name,
+                            l_last_downloaded,
+                            l_last_transaction,
+                            l_key_status
+                
+                        FROM DEVICE d
+                
+                        LEFT JOIN LOCATION l
+                            ON l.ID = d.LOCATION_ID
+                
+                        WHERE d.ID = :P1126_DEVICE_ID
+                          AND AUTH_PKG.can_access_location_sql(
+                                d.LOCATION_ID
+                              ) = 1;
+                
+                    EXCEPTION
+                        WHEN NO_DATA_FOUND THEN
+                            RETURN
+                                '<div class="employee-not-found">
+                                    Device not found or access is not permitted.
+                                </div>';
+                    END;
+                
+                    --------------------------------------------------
+                    -- Device Header
+                    --------------------------------------------------
+                    l_html := q'~
+                    <div class="ev-profile">
+                
+                        <div class="employee-card ev-header">
+                
+                            <div class="employee-icon">
+                                <span class="fa fa-server"
+                                      aria-hidden="true"></span>
+                            </div>
+                
+                            <div class="employee-details ev-identity">
+                
+                                <span class="employee-label">
+                                    DEVICE PROFILE
+                                </span>
+                
+                                <div class="employee-name">~' ||
+                                    safe_text(l_device_name) ||
+                                q'~</div>
+                
+                                <div class="employee-number">
+                                    <span class="fa fa-hashtag"
+                                          aria-hidden="true"></span>
+                                    Device ID
+                                    <strong>~' ||
+                                        safe_text(:P1126_DEVICE_ID) ||
+                                    q'~</strong>
+                                </div>
+                
+                            </div>
+                
+                            <span class="ev-status ev-neutral">
+                                Device #~' ||
+                                    safe_text(:P1126_DEVICE_ID) ||
+                            q'~</span>
+                
+                        </div>
+                
+                        <!-- Device Information -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-server"
+                                      aria-hidden="true"></span>
+                                <h3>Device Information</h3>
+                            </div>
+                
+                            <div class="ev-grid">
+                    ~';
+                
+                    --------------------------------------------------
+                    -- Device Information Cards
+                    --------------------------------------------------
+                    l_html := l_html ||
+                
+                        info_card(
+                            'Device Type',
+                            l_device_type
+                        ) ||
+                
+                        info_card(
+                            'Location',
+                            l_location_name
+                        ) ||
+                
+                        info_card(
+                            'IP Address',
+                            l_ip
+                        ) ||
+                
+                        info_card(
+                            'Port',
+                            l_port
+                        );
+                
+                    l_html := l_html || q'~
+                            </div>
+                        </section>
+                
+                        <!-- Device Activity -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-clock-o"
+                                      aria-hidden="true"></span>
+                                <h3>Device Activity</h3>
+                            </div>
+                
+                            <div class="ev-grid">
+                    ~';
+                
+                    --------------------------------------------------
+                    -- Device Activity Cards
+                    --------------------------------------------------
+                    l_html := l_html ||
+                
+                        info_card(
+                            'Last Downloaded',
+                            l_last_downloaded
+                        ) ||
+                
+                        info_card(
+                            'Last Transaction',
+                            l_last_transaction
+                        );
+                
+                    l_html := l_html || q'~
+                            </div>
+                        </section>
+                
+                        <!-- Connection Configuration -->
+                        <section class="ev-panel">
+                
+                            <div class="ev-section-title">
+                                <span class="fa fa-cog"
+                                      aria-hidden="true"></span>
+                                <h3>Connection Configuration</h3>
+                            </div>
+                
+                            <div class="ev-grid">
+                    ~';
+                
+                    --------------------------------------------------
+                    -- Connection Configuration Cards
+                    --------------------------------------------------
+                    l_html := l_html ||
+                
+                        info_card(
+                            'Communication Key',
+                            l_key_status
+                        );
+                
+                    l_html := l_html || q'~
+                            </div>
+                        </section>
+                
+                    </div>
+                    ~';
+                
+                    RETURN l_html;
+                
+                END;
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region form-body (
+        name: Device Form
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P1126_COMMUNICATION_KEY (
+        type: hidden
+        layout {
+            sequence: 40
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_DEVICE_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1126_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1126_IP (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_LAST_DOWNLOADED (
+        type: hidden
+        layout {
+            sequence: 70
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_LAST_TRANSACTION (
+        type: hidden
+        layout {
+            sequence: 80
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_LOCATION_ID (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_NAME (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_PORT (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1126_TYPE (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+        config {
+            buildOption: @commented-out
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button correct-timestamps (
+        buttonName: CORRECT_TIMESTAMPS
+        label: Correct Timestamps
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete Device
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Delete this in-scope device.
+            style: danger
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button request-upload (
+        buttonName: REQUEST_UPLOAD
+        label: Queue Upload
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Queue an upload request. A queued command does not confirm physical device execution.
+            style: warning
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 40
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 60
+        }
+        advanced {
+            executionMappingIdentifier: 48820779524983553
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,REQUEST_UPLOAD,CORRECT_TIMESTAMPS,DELETE
+        }
+    )
+
+    process correct-device-timestamps (
+        name: Correct Activity Timestamps Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.correct_activity_timestamps(:P1126_DEVICE_ID,
+                        :P1126_LAST_DOWNLOADED, :P1126_LAST_TRANSACTION, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 48819955044983552
+        }
+        serverSideCondition {
+            whenButtonPressed: @correct-timestamps
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process delete-device (
+        name: Delete Device Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.delete_device(:P1126_DEVICE_ID, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 50
+        }
+        advanced {
+            executionMappingIdentifier: 48820372518983553
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process initialize-device-form (
+        name: Initialize Device Form
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P1126_IDEMPOTENCY_KEY := nvl(:P1126_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                    IF NOT AUTH_PKG.has_role('1') OR NOT AUTH_PKG.can_write('Devices') THEN
+                        raise_application_error(-20140, 'Device administration requires role 1 and Devices write access');
+                    END IF;
+                    IF NOT AUTH_PKG.can_read('Devices') THEN
+                        raise_application_error(-20140, 'Device read access is not permitted');
+                    END IF;
+                    IF :P1126_DEVICE_ID IS NOT NULL THEN
+                        SELECT NAME, IP, PORT, COMMUNICATION_KEY, TYPE, LOCATION_ID,
+                               LAST_DOWNLOADED, LAST_TRANSACTION
+                          INTO :P1126_NAME, :P1126_IP, :P1126_PORT, :P1126_COMMUNICATION_KEY,
+                               :P1126_TYPE, :P1126_LOCATION_ID, :P1126_LAST_DOWNLOADED,
+                               :P1126_LAST_TRANSACTION
+                          FROM DEVICE
+                         WHERE ID = :P1126_DEVICE_ID
+                           AND AUTH_PKG.can_access_location_sql(LOCATION_ID) = 1;
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 48818706696983550
+        }
+    )
+
+    process queue-device-upload (
+        name: Queue Upload Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_queue_id number; l_status varchar2(30); l_message varchar2(4000); l_payload clob;
+                BEGIN
+                    SELECT json_object('requested_from' value 'APEX' returning clob) INTO l_payload FROM dual;
+                    DEVICE_API_PKG.enqueue_command(:P1126_DEVICE_ID, 'UPLOAD', l_payload,
+                        :P1126_IDEMPOTENCY_KEY, l_queue_id, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 48819503952983552
+        }
+        serverSideCondition {
+            whenButtonPressed: @request-upload
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process save-device (
+        name: Save Device Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.upsert_device(:P1126_DEVICE_ID, :P1126_NAME, :P1126_IP,
+                        :P1126_PORT, :P1126_COMMUNICATION_KEY, :P1126_TYPE, :P1126_LOCATION_ID,
+                        l_id, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                    :P1126_DEVICE_ID := l_id;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 48819168471983551
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+)

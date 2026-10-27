@@ -1,0 +1,807 @@
+page 52 (
+    name: Time Sheet Detail
+    alias: TIMESHEET-DETAIL
+    title: Time Sheet Detail
+    pageGroup: @reports
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Time Sheet Detail
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region detail-controls (
+        name: Time Sheet Controls
+        type: staticContent
+        layout {
+            sequence: 15
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region timesheet-detail-report (
+        name: Calculated Daily Rows
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select EMPLOYEE_ID, EMPLOYEE_NUMBER, EMPLOYEE_NAME, WORK_DATE,
+                       SHIFT_NAME, SHIFT_IS_OFF, ACTUAL_IN AS FIRST_IN, ACTUAL_OUT AS LAST_OUT,
+                       STANDARD_HOURS, EARLY_HOURS + LATE_HOURS AS OVERTIME_HOURS,
+                       BEFORE_07_HOURS, AFTER_19_HOURS, REST_HOURS, CALCULATED_HOURS,
+                       IS_HOLIDAY, IS_VACATION, IS_COMPANY_PERMISSION, IS_ABSENT,
+                       CALCULATION_STATUS, REMARKS, ALTERNATE_SHIFT_ID
+                  from GET_EMPLOYEE_TIMESHEET(
+                         p_location_id => null,
+                         p_employee_id => :P52_EMPLOYEE_ID,
+                         p_month => to_date(:P52_MONTH, 'YYYY-MM-DD'),
+                         p_work_date => null
+                       )
+                 where AUTH_PKG.can_access_location_sql(LOCATION_ID) = 1
+                 order by WORK_DATE
+                ```
+            pageItemsToSubmit: [
+                "[P52_EMPLOYEE_ID"
+                "P52_MONTH]"
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No calculated rows are available for this employee and permitted month.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47985726693343266
+        }
+
+        column AFTER_19_HOURS (
+            type: plainText
+            heading {
+                heading: After 19:00
+            }
+            layout {
+                sequence: 12
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column ALTERNATE_SHIFT_ID (
+            type: plainText
+            heading {
+                heading: Alternate Shift
+            }
+            layout {
+                sequence: 21
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column BEFORE_07_HOURS (
+            type: plainText
+            heading {
+                heading: Before 07:00
+            }
+            layout {
+                sequence: 11
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CALCULATED_HOURS (
+            type: plainText
+            heading {
+                heading: Calculated Hours
+            }
+            layout {
+                sequence: 14
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column CALCULATION_STATUS (
+            type: plainText
+            heading {
+                heading: Calculation Status
+            }
+            layout {
+                sequence: 19
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column EMPLOYEE_ID (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Employee Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee Number
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column FIRST_IN (
+            type: plainText
+            heading {
+                heading: In
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column IS_ABSENT (
+            type: plainText
+            heading {
+                heading: Absent
+            }
+            layout {
+                sequence: 18
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column IS_COMPANY_PERMISSION (
+            type: plainText
+            heading {
+                heading: Company Permission
+            }
+            layout {
+                sequence: 17
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column IS_HOLIDAY (
+            type: plainText
+            heading {
+                heading: Holiday
+            }
+            layout {
+                sequence: 15
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column IS_VACATION (
+            type: plainText
+            heading {
+                heading: Absence Event
+            }
+            layout {
+                sequence: 16
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column LAST_OUT (
+            type: plainText
+            heading {
+                heading: Out
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column OVERTIME_HOURS (
+            type: plainText
+            heading {
+                heading: Overtime
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column REMARKS (
+            type: plainText
+            heading {
+                heading: Remarks
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column REST_HOURS (
+            type: plainText
+            heading {
+                heading: Rest Hours
+            }
+            layout {
+                sequence: 13
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column SHIFT_IS_OFF (
+            type: plainText
+            heading {
+                heading: Rest Day
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SHIFT_NAME (
+            type: plainText
+            heading {
+                heading: Shift
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column STANDARD_HOURS (
+            type: plainText
+            heading {
+                heading: Standard Hours
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column WORK_DATE (
+            type: plainText
+            heading {
+                heading: Work Date
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AFTER_19_HOURS (
+                sequence: 12
+            )
+
+            displayColumn ALTERNATE_SHIFT_ID (
+                sequence: 21
+            )
+
+            displayColumn BEFORE_07_HOURS (
+                sequence: 11
+            )
+
+            displayColumn CALCULATED_HOURS (
+                sequence: 14
+            )
+
+            displayColumn CALCULATION_STATUS (
+                sequence: 19
+            )
+
+            displayColumn EMPLOYEE_ID (
+                sequence: 1
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 3
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 2
+            )
+
+            displayColumn FIRST_IN (
+                sequence: 7
+            )
+
+            displayColumn IS_ABSENT (
+                sequence: 18
+            )
+
+            displayColumn IS_COMPANY_PERMISSION (
+                sequence: 17
+            )
+
+            displayColumn IS_HOLIDAY (
+                sequence: 15
+            )
+
+            displayColumn IS_VACATION (
+                sequence: 16
+            )
+
+            displayColumn LAST_OUT (
+                sequence: 8
+            )
+
+            displayColumn OVERTIME_HOURS (
+                sequence: 10
+            )
+
+            displayColumn REMARKS (
+                sequence: 20
+            )
+
+            displayColumn REST_HOURS (
+                sequence: 13
+            )
+
+            displayColumn SHIFT_IS_OFF (
+                sequence: 6
+            )
+
+            displayColumn SHIFT_NAME (
+                sequence: 5
+            )
+
+            displayColumn STANDARD_HOURS (
+                sequence: 9
+            )
+
+            displayColumn WORK_DATE (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    pageItem P52_EMPLOYEE_ID (
+        type: popupLov
+        label {
+            label: Employee
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @employee
+        }
+        layout {
+            sequence: 10
+            region: @detail-controls
+            slot: regionBody
+            alignment: left
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P52_EXPECTED_VERSION (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @detail-controls
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P52_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @detail-controls
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P52_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @detail-controls
+            slot: regionBody
+            alignment: left
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P52_SHIFT_ID (
+        type: selectList
+        label {
+            label: Alternate Shift
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @shift
+            nullDisplayValue: - Select Shift -
+        }
+        layout {
+            sequence: 40
+            region: @detail-controls
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P52_WORK_DATE (
+        type: datePicker
+        label {
+            label: Override Work Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @detail-controls
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Save only changes the employee/date alternate-shift override; it never recalculates punches.
+        }
+    )
+
+    button apply-timesheet-detail (
+        buttonName: APPLY_TIMESHEET_DETAIL
+        label: Apply
+        layout {
+            sequence: 50
+            region: @detail-controls
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button record-print (
+        buttonName: RECORD_PRINT
+        label: Record Print
+        layout {
+            sequence: 70
+            region: @detail-controls
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.can_print_timesheet(:P52_EMPLOYEE_ID, trunc(to_date(:P52_MONTH, 'YYYY-MM-DD'), 'MM'))
+        }
+    )
+
+    button save-alternate-shift (
+        buttonName: SAVE_ALTERNATE_SHIFT
+        label: Save Alternate Shift
+        layout {
+            sequence: 60
+            region: @detail-controls
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    process initialize-timesheet-detail (
+        name: Initialize Timesheet Detail
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P52_MONTH := to_char(nvl(to_date(:P52_MONTH, 'YYYY-MM-DD'), trunc(sysdate, 'MM')), 'YYYY-MM-DD');
+                    :P52_IDEMPOTENCY_KEY := nvl(:P52_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                    IF :REQUEST IS NULL OR :REQUEST = 'APPLY_TIMESHEET_DETAIL' THEN
+                        :P52_SHIFT_ID := NULL;
+                        :P52_EXPECTED_VERSION := NULL;
+                        IF NOT AUTH_PKG.can_read('ReadTimesheet') THEN
+                            raise_application_error(-20192, 'Timesheet read access is not permitted');
+                        END IF;
+                        IF :P52_EMPLOYEE_ID IS NOT NULL AND :P52_WORK_DATE IS NOT NULL THEN
+                            BEGIN
+                                SELECT SHIFT_ID, ORA_ROWSCN INTO :P52_SHIFT_ID, :P52_EXPECTED_VERSION
+                                  FROM ALTERNATE_SHIFT a
+                                  JOIN EMPLOYEE e ON e.ID = a.EMPLOYEE_ID
+                                 WHERE a.EMPLOYEE_ID = :P52_EMPLOYEE_ID
+                                   AND trunc(a."DATE") = trunc(to_date(:P52_WORK_DATE, 'YYYY-MM-DD'))
+                                   AND AUTH_PKG.can_access_location_sql(e.LOCATION_ID) = 1;
+                            EXCEPTION WHEN no_data_found THEN NULL; END;
+                        END IF;
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 47988933762343267
+        }
+    )
+
+    process record-timesheet-print (
+        name: Record Print Decision Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    TIMESHEET_API_PKG.record_print_decision(:P52_EMPLOYEE_ID, :P52_MONTH,
+                        'PRINTED', :P52_IDEMPOTENCY_KEY, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 47989159721343268
+        }
+        serverSideCondition {
+            whenButtonPressed: @record-print
+        }
+    )
+
+    process save-timesheet-alternate-shift (
+        name: Save Alternate Shift Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    TIMESHEET_API_PKG.upsert_alternate_shift(:P52_EMPLOYEE_ID, :P52_WORK_DATE,
+                        :P52_SHIFT_ID, :P52_EXPECTED_VERSION, :P52_IDEMPOTENCY_KEY,
+                        l_id, l_status, l_message);
+                    IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 47989093542343267
+        }
+        serverSideCondition {
+            whenButtonPressed: @save-alternate-shift
+        }
+    )
+
+)

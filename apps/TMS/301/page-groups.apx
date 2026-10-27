@@ -1,0 +1,23 @@
+pageGroup administration (
+    name: Administration
+)
+
+pageGroup attendance (
+    name: Attendance
+)
+
+pageGroup company (
+    name: Company
+)
+
+pageGroup employees (
+    name: Employees
+)
+
+pageGroup reports (
+    name: Reports
+)
+
+pageGroup time-management (
+    name: Time Management
+)

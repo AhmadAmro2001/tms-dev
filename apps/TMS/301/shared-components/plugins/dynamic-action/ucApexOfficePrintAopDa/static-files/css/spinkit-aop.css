@@ -1,0 +1,7 @@
+.aop-Processing {
+  z-index: 99999999;
+}
+
+.t-Button .aop-Processing {
+  --sk-size: var(--a-button-font-size, 20px);
+}

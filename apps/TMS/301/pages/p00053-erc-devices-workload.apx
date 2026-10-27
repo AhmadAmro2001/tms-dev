@@ -1,0 +1,1089 @@
+page 53 (
+    name: ERC Devices Workload
+    alias: ERC-DEVICES-WORKLOAD
+    title: ERC Devices Workload
+    pageGroup: @reports
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: ERC Devices Workload
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region erc-devices-workload-filters (
+        name: ERC Devices Workload Filters
+        type: staticContent
+        layout {
+            sequence: 18
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    region erc-devices-workload-report (
+        name: ERC Devices Workload
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                
+                WITH YEAR_PARAMS AS (
+                    SELECT
+                        TO_DATE(
+                            NVL(:P53_YEAR, TO_CHAR(SYSDATE, 'YYYY'))
+                            || '-01-01',
+                            'YYYY-MM-DD'
+                        ) AS LOCAL_YEAR_START
+                    FROM DUAL
+                ),
+                
+                UTC_BOUNDS AS (
+                    SELECT
+                        CAST(
+                            FROM_TZ(
+                                CAST(LOCAL_YEAR_START AS TIMESTAMP),
+                                'Africa/Cairo'
+                            ) AT TIME ZONE 'UTC'
+                            AS TIMESTAMP
+                        ) AS UTC_START,
+                
+                        CAST(
+                            FROM_TZ(
+                                CAST(
+                                    ADD_MONTHS(LOCAL_YEAR_START, 12)
+                                    AS TIMESTAMP
+                                ),
+                                'Africa/Cairo'
+                            ) AT TIME ZONE 'UTC'
+                            AS TIMESTAMP
+                        ) AS UTC_END
+                    FROM YEAR_PARAMS
+                ),
+                
+                --------------------------------------------------
+                -- All known ERC device names
+                --------------------------------------------------
+                ERC_DEVICES AS (
+                    SELECT DISTINCT
+                        UPPER(TRIM(t.DEVICE_NAME)) AS DEVICE_NAME
+                    FROM "TRANSACTION" t
+                    WHERE UPPER(TRIM(t.DEVICE_NAME)) LIKE '%ERC%'
+                ),
+                
+                --------------------------------------------------
+                -- Transactions for selected year
+                --------------------------------------------------
+                YEAR_TRANSACTIONS AS (
+                    SELECT
+                        UPPER(TRIM(t.DEVICE_NAME)) AS DEVICE_NAME,
+                
+                        TRIM(TO_CHAR(t.TYPE)) AS MOVEMENT_TYPE,
+                
+                        EXTRACT(
+                            MONTH FROM CAST(
+                                FROM_TZ(
+                                    CAST(t."DATE" AS TIMESTAMP),
+                                    'UTC'
+                                ) AT TIME ZONE 'Africa/Cairo'
+                                AS TIMESTAMP
+                            )
+                        ) AS LOCAL_MONTH
+                
+                    FROM "TRANSACTION" t
+                    CROSS JOIN UTC_BOUNDS b
+                
+                    WHERE t."DATE" >= b.UTC_START
+                      AND t."DATE" < b.UTC_END
+                      AND UPPER(TRIM(t.DEVICE_NAME)) LIKE '%ERC%'
+                )
+                
+                SELECT
+                    d.DEVICE_NAME,
+                
+                    --------------------------------------------------
+                    -- JANUARY
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 1
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS JAN_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 1
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS JAN_OUT,
+                
+                    --------------------------------------------------
+                    -- FEBRUARY
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 2
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS FEB_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 2
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS FEB_OUT,
+                
+                    --------------------------------------------------
+                    -- MARCH
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 3
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS MAR_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 3
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS MAR_OUT,
+                
+                    --------------------------------------------------
+                    -- APRIL
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 4
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS APR_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 4
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS APR_OUT,
+                
+                    --------------------------------------------------
+                    -- MAY
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 5
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS MAY_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 5
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS MAY_OUT,
+                
+                    --------------------------------------------------
+                    -- JUNE
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 6
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS JUN_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 6
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS JUN_OUT,
+                
+                    --------------------------------------------------
+                    -- JULY
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 7
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS JUL_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 7
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS JUL_OUT,
+                
+                    --------------------------------------------------
+                    -- AUGUST
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 8
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS AUG_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 8
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS AUG_OUT,
+                
+                    --------------------------------------------------
+                    -- SEPTEMBER
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 9
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS SEP_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 9
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS SEP_OUT,
+                
+                    --------------------------------------------------
+                    -- OCTOBER
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 10
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS OCT_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 10
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS OCT_OUT,
+                
+                    --------------------------------------------------
+                    -- NOVEMBER
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 11
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS NOV_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 11
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS NOV_OUT,
+                
+                    --------------------------------------------------
+                    -- DECEMBER
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.LOCAL_MONTH = 12
+                              AND t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS DEC_IN,
+                
+                    SUM(CASE WHEN t.LOCAL_MONTH = 12
+                              AND t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS DEC_OUT,
+                
+                    --------------------------------------------------
+                    -- YEARLY TOTALS
+                    --------------------------------------------------
+                    SUM(CASE WHEN t.MOVEMENT_TYPE = '0'
+                             THEN 1 ELSE 0 END) AS TOTAL_IN,
+                
+                    SUM(CASE WHEN t.MOVEMENT_TYPE = '1'
+                             THEN 1 ELSE 0 END) AS TOTAL_OUT,
+                
+                    SUM(CASE WHEN t.MOVEMENT_TYPE IN ('0', '1')
+                             THEN 1 ELSE 0 END) AS TOTAL_TRANSACTIONS
+                
+                FROM ERC_DEVICES d
+                
+                LEFT JOIN YEAR_TRANSACTIONS t
+                    ON t.DEVICE_NAME = d.DEVICE_NAME
+                
+                WHERE AUTH_PKG.can_read_sql('ReadTransactions') = 1
+                
+                GROUP BY
+                    d.DEVICE_NAME
+                
+                ORDER BY
+                    d.DEVICE_NAME
+                
+                ```
+            pageItemsToSubmit: P53_YEAR
+        }
+        layout {
+            sequence: 38
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        advanced {
+            savedReportMappingIdentifier: 81163481790828125
+        }
+
+        column APR_IN (
+            type: plainText
+            heading {
+                heading: Apr In
+                alignment: end
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column APR_OUT (
+            type: plainText
+            heading {
+                heading: Apr Out
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column AUG_IN (
+            type: plainText
+            heading {
+                heading: Aug In
+                alignment: end
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column AUG_OUT (
+            type: plainText
+            heading {
+                heading: Aug Out
+                alignment: end
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column DEC_IN (
+            type: plainText
+            heading {
+                heading: Dec In
+                alignment: end
+            }
+            layout {
+                sequence: 380
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column DEC_OUT (
+            type: plainText
+            heading {
+                heading: Dec Out
+                alignment: end
+            }
+            layout {
+                sequence: 390
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column DEVICE_NAME (
+            type: plainText
+            heading {
+                heading: Device Name
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column FEB_IN (
+            type: plainText
+            heading {
+                heading: Feb In
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column FEB_OUT (
+            type: plainText
+            heading {
+                heading: Feb Out
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column JAN_IN (
+            type: plainText
+            heading {
+                heading: Jan In
+                alignment: end
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column JAN_OUT (
+            type: plainText
+            heading {
+                heading: Jan Out
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column JUL_IN (
+            type: plainText
+            heading {
+                heading: Jul In
+                alignment: end
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column JUL_OUT (
+            type: plainText
+            heading {
+                heading: Jul Out
+                alignment: end
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column JUN_IN (
+            type: plainText
+            heading {
+                heading: Jun In
+                alignment: end
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column JUN_OUT (
+            type: plainText
+            heading {
+                heading: Jun Out
+                alignment: end
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column MAR_IN (
+            type: plainText
+            heading {
+                heading: Mar In
+                alignment: end
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column MAR_OUT (
+            type: plainText
+            heading {
+                heading: Mar Out
+                alignment: end
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column MAY_IN (
+            type: plainText
+            heading {
+                heading: May In
+                alignment: end
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column MAY_OUT (
+            type: plainText
+            heading {
+                heading: May Out
+                alignment: end
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column NOV_IN (
+            type: plainText
+            heading {
+                heading: Nov In
+                alignment: end
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column NOV_OUT (
+            type: plainText
+            heading {
+                heading: Nov Out
+                alignment: end
+            }
+            layout {
+                sequence: 370
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column OCT_IN (
+            type: plainText
+            heading {
+                heading: Oct In
+                alignment: end
+            }
+            layout {
+                sequence: 340
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column OCT_OUT (
+            type: plainText
+            heading {
+                heading: Oct Out
+                alignment: end
+            }
+            layout {
+                sequence: 350
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column SEP_IN (
+            type: plainText
+            heading {
+                heading: Sep In
+                alignment: end
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column SEP_OUT (
+            type: plainText
+            heading {
+                heading: Sep Out
+                alignment: end
+            }
+            layout {
+                sequence: 330
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column TOTAL_IN (
+            type: plainText
+            heading {
+                heading: Total In
+                alignment: end
+            }
+            layout {
+                sequence: 400
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column TOTAL_OUT (
+            type: plainText
+            heading {
+                heading: Total Out
+                alignment: end
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column TOTAL_TRANSACTIONS (
+            type: plainText
+            heading {
+                heading: Total Transactions
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn APR_IN (
+                sequence: 8
+            )
+
+            displayColumn APR_OUT (
+                sequence: 9
+            )
+
+            displayColumn AUG_IN (
+                sequence: 16
+            )
+
+            displayColumn AUG_OUT (
+                sequence: 17
+            )
+
+            displayColumn DEC_IN (
+                sequence: 24
+            )
+
+            displayColumn DEC_OUT (
+                sequence: 25
+            )
+
+            displayColumn DEVICE_NAME (
+                sequence: 1
+            )
+
+            displayColumn FEB_IN (
+                sequence: 4
+            )
+
+            displayColumn FEB_OUT (
+                sequence: 5
+            )
+
+            displayColumn JAN_IN (
+                sequence: 2
+            )
+
+            displayColumn JAN_OUT (
+                sequence: 3
+            )
+
+            displayColumn JUL_IN (
+                sequence: 14
+            )
+
+            displayColumn JUL_OUT (
+                sequence: 15
+            )
+
+            displayColumn JUN_IN (
+                sequence: 12
+            )
+
+            displayColumn JUN_OUT (
+                sequence: 13
+            )
+
+            displayColumn MAR_IN (
+                sequence: 6
+            )
+
+            displayColumn MAR_OUT (
+                sequence: 7
+            )
+
+            displayColumn MAY_IN (
+                sequence: 10
+            )
+
+            displayColumn MAY_OUT (
+                sequence: 11
+            )
+
+            displayColumn NOV_IN (
+                sequence: 22
+            )
+
+            displayColumn NOV_OUT (
+                sequence: 23
+            )
+
+            displayColumn OCT_IN (
+                sequence: 20
+            )
+
+            displayColumn OCT_OUT (
+                sequence: 21
+            )
+
+            displayColumn SEP_IN (
+                sequence: 18
+            )
+
+            displayColumn SEP_OUT (
+                sequence: 19
+            )
+
+        )
+
+    )
+
+    region new (
+        name: Filter Region
+        type: staticContent
+        layout {
+            sequence: 28
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region no-access-notice (
+        name: No Access
+        type: staticContent
+        source {
+            htmlCode: <p>You do not have permission to read transactions.</p>
+        }
+        layout {
+            sequence: 15
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 0
+        }
+    )
+
+    pageItem P53_FROM_DATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @erc-devices-workload-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Include transactions from this date.
+        }
+    )
+
+    pageItem P53_TO_DATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @erc-devices-workload-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Include transactions through this date.
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P53_YEAR (
+        type: selectOne
+        label {
+            label: Year
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    TO_CHAR(EXTRACT(YEAR FROM SYSDATE) - LEVEL + 1) AS DISPLAY_VALUE,
+                    TO_CHAR(EXTRACT(YEAR FROM SYSDATE) - LEVEL + 1) AS RETURN_VALUE
+                FROM DUAL
+                CONNECT BY LEVEL <= 10
+                ORDER BY DISPLAY_VALUE DESC
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @new
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button apply-erc-devices-workload-filters (
+        buttonName: APPLY_ERC_DEVICES_WORKLOAD_FILTERS
+        label: Apply Filters
+        layout {
+            sequence: 30
+            region: @erc-devices-workload-filters
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 20
+            region: @new
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)

@@ -1,0 +1,416 @@
+page 100 (
+    name: Import Center
+    alias: IMPORT-CENTER
+    title: Import Center
+    pageGroup: @administration
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Import Center
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region form-body (
+        name: Submit validated import batch
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region import-batches (
+        name: Import Batches
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery: select ID, SOURCE_NAME, STATUS, ACCEPTED_COUNT, REJECTED_COUNT, ERROR_COUNT, CREATED_AT, CREATED_BY from IMPORT_BATCH order by CREATED_AT desc
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47992023213343313
+        }
+
+        column ACCEPTED_COUNT (
+            type: plainText
+            heading {
+                heading: ACCEPTED COUNT
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column CREATED_AT (
+            type: plainText
+            heading {
+                heading: CREATED AT
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CREATED_BY (
+            type: plainText
+            heading {
+                heading: CREATED BY
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column ERROR_COUNT (
+            type: plainText
+            heading {
+                heading: ERROR COUNT
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column REJECTED_COUNT (
+            type: plainText
+            heading {
+                heading: REJECTED COUNT
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SOURCE_NAME (
+            type: plainText
+            heading {
+                heading: SOURCE NAME
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: STATUS
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    pageItem P100_BATCH_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P100_ENTITY_TYPE (
+        type: textField
+        label {
+            label: Entity Type
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Entity Type for this record.
+        }
+    )
+
+    pageItem P100_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P100_PROCESS_ROWS_RESULT (
+        type: textarea
+        label {
+            label: Processing Status and Row Errors
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Displays PROCESS_ROWS batch status, accepted/rejected totals, and returned row errors.
+        }
+    )
+
+    pageItem P100_ROWS_JSON (
+        type: textarea
+        label {
+            label: Validated Rows JSON
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Validated Rows JSON for this record.
+        }
+    )
+
+    pageItem P100_SOURCE_NAME (
+        type: textField
+        label {
+            label: Source Name
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Source Name for this record.
+        }
+    )
+
+    button submit-import-batch (
+        buttonName: SUBMIT_IMPORT_BATCH
+        label: Submit Import Batch
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    process import-through-package (
+        name: Import Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_result clob; BEGIN IMPORT_API_PKG.open_batch(:P100_SOURCE_NAME,:P100_IDEMPOTENCY_KEY,:P100_BATCH_ID); IMPORT_API_PKG.process_rows(:P100_BATCH_ID,:P100_ENTITY_TYPE,:P100_ROWS_JSON,l_result); :P100_PROCESS_ROWS_RESULT:=l_result; END;
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 47994207002343314
+        }
+        serverSideCondition {
+            whenButtonPressed: @submit-import-batch
+        }
+    )
+
+    process initialize-import-key (
+        name: Initialize Import Key
+        type: executeCode
+        source {
+            plsqlCode: BEGIN :P100_IDEMPOTENCY_KEY := nvl(:P100_IDEMPOTENCY_KEY, rawtohex(sys_guid())); END;
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 47994103596343314
+        }
+    )
+
+)

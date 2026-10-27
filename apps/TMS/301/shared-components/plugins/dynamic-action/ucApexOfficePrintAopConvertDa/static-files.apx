@@ -1,0 +1,24 @@
+file "css/aop.min.css" (
+    mimeType: text/css
+    charSet: utf-8
+)
+
+file "css/spinkit-aop.min.css" (
+    mimeType: text/css
+    charSet: utf-8
+)
+
+file "css/spinkit.min.css" (
+    mimeType: text/css
+    charSet: utf-8
+)
+
+file "js/aop_da.min.js" (
+    mimeType: application/javascript
+    charSet: utf-8
+)
+
+file "js/es6-promise.min.js" (
+    mimeType: application/javascript
+    charSet: utf-8
+)

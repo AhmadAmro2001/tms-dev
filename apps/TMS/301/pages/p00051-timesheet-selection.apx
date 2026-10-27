@@ -1,0 +1,545 @@
+page 51 (
+    name: Time Sheet
+    alias: TIMESHEET-SELECTION
+    title: Time Sheet
+    pageGroup: @reports
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Time Sheet
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region timesheet-filters (
+        name: Time Sheet Filters
+        type: staticContent
+        layout {
+            sequence: 15
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region timesheet-selection-report (
+        name: Eligible Employees
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select e.ID AS EMPLOYEE_ID, e.EMPLOYEE_NUMBER, e.NAME AS EMPLOYEE_NAME,
+                       e.LOCATION_ID, e.DEPARTMENT_ID, e.PROJECT_ID, e.GRADE_ID,
+                       e.NATIONALITY, e.RELIGION,
+                       apex_page.get_url(p_page => 52, p_items => 'P52_EMPLOYEE_ID,P52_MONTH,P52_WORK_DATE',
+                                         p_values => to_char(e.ID) || ',' || to_char(nvl(to_date(:P51_MONTH, 'YYYY-MM-DD'), trunc(sysdate, 'MM')), 'YYYY-MM-DD') || ',' ||
+                                                     to_char(nvl(to_date(:P51_WORK_DATE, 'YYYY-MM-DD'), nvl(to_date(:P51_MONTH, 'YYYY-MM-DD'), trunc(sysdate, 'MM'))), 'YYYY-MM-DD')) AS DETAIL_URL
+                  from EMPLOYEE e
+                 where e.IS_ACTIVE = '1'
+                   and e.PRINT_TIMESHEET = '1'
+                   and e.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':')))
+                   and (:P51_EMPLOYEE_ID is null or e.ID = :P51_EMPLOYEE_ID)
+                   and (:P51_DEPARTMENT_ID is null or e.DEPARTMENT_ID = :P51_DEPARTMENT_ID)
+                   and (:P51_PROJECT_ID is null or e.PROJECT_ID = :P51_PROJECT_ID)
+                   and (:P51_LOCATION_ID is null or e.LOCATION_ID = :P51_LOCATION_ID)
+                   and (:P51_NATIONALITY is null or e.NATIONALITY = :P51_NATIONALITY)
+                   and (:P51_RELIGION is null or e.RELIGION = :P51_RELIGION)
+                   and (:P51_GRADE_ID is null or e.GRADE_ID = :P51_GRADE_ID)
+                 order by e.EMPLOYEE_NUMBER
+                ```
+            pageItemsToSubmit: [
+                "[P51_MONTH"
+                P51_WORK_DATE
+                P51_EMPLOYEE_ID
+                P51_DEPARTMENT_ID
+                P51_PROJECT_ID
+                P51_LOCATION_ID
+                P51_NATIONALITY
+                P51_RELIGION
+                "P51_GRADE_ID]"
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No employees are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47983178543343227
+        }
+
+        column DEPARTMENT_ID (
+            type: plainText
+            heading {
+                heading: Department
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column DETAIL_URL (
+            type: plainText
+            heading {
+                heading: Details
+            }
+            layout {
+                sequence: 10
+            }
+            columnFormatting {
+                htmlExpression: <a href="#DETAIL_URL!ATTR#" class="t-Button t-Button--noLabel t-Button--icon t-Button--link" aria-label="Open timesheet" title="Open timesheet"><span class="fa fa-calendar" aria-hidden="true"></span></a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_ID (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Employee Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee Number
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column GRADE_ID (
+            type: plainText
+            heading {
+                heading: Grade
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATION_ID (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column NATIONALITY (
+            type: plainText
+            heading {
+                heading: Nationality
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PROJECT_ID (
+            type: plainText
+            heading {
+                heading: Project
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column RELIGION (
+            type: plainText
+            heading {
+                heading: Religion
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DEPARTMENT_ID (
+                sequence: 5
+            )
+
+            displayColumn DETAIL_URL (
+                sequence: 10
+            )
+
+            displayColumn EMPLOYEE_ID (
+                sequence: 1
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 3
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 2
+            )
+
+            displayColumn GRADE_ID (
+                sequence: 7
+            )
+
+            displayColumn LOCATION_ID (
+                sequence: 4
+            )
+
+            displayColumn NATIONALITY (
+                sequence: 8
+            )
+
+            displayColumn PROJECT_ID (
+                sequence: 6
+            )
+
+            displayColumn RELIGION (
+                sequence: 9
+            )
+
+        )
+
+    )
+
+    pageItem P51_DEPARTMENT_ID (
+        type: selectList
+        label {
+            label: Department
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @department
+            nullDisplayValue: - All Departments -
+        }
+        layout {
+            sequence: 40
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_EMPLOYEE_ID (
+        type: popupLov
+        label {
+            label: Employee
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @employee
+        }
+        layout {
+            sequence: 30
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_GRADE_ID (
+        type: selectList
+        label {
+            label: Grade
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @grade
+            nullDisplayValue: - All Grades -
+        }
+        layout {
+            sequence: 90
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_LOCATION_ID (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+            nullDisplayValue: - All Permitted Locations -
+        }
+        layout {
+            sequence: 60
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: A submitted location is intersected with your permitted scope.
+        }
+    )
+
+    pageItem P51_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Choose any date in the required timesheet month.
+        }
+    )
+
+    pageItem P51_NATIONALITY (
+        type: textField
+        label {
+            label: Nationality
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_PROJECT_ID (
+        type: selectList
+        label {
+            label: Project
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @project
+            nullDisplayValue: - All Projects -
+        }
+        layout {
+            sequence: 50
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_RELIGION (
+        type: textField
+        label {
+            label: Religion
+            alignment: left
+        }
+        layout {
+            sequence: 80
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P51_WORK_DATE (
+        type: datePicker
+        label {
+            label: Work Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @timesheet-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Choose the exact date whose alternate shift you want to review or change.
+        }
+    )
+
+    button apply-timesheet-filters (
+        buttonName: APPLY_TIMESHEET_FILTERS
+        label: Apply Filters
+        layout {
+            sequence: 100
+            region: @timesheet-filters
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)

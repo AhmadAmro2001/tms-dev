@@ -1,0 +1,392 @@
+page 1124 (
+    name: User Form
+    alias: USER-FORM
+    title: User Form
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region form-body (
+        name: User Form
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P1124_ALLOW_PRINT (
+        type: textField
+        label {
+            label: Allow Print (Y/N)
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Allow Print (Y/N) for this record.
+        }
+    )
+
+    pageItem P1124_APP_USER_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1124_ENABLED (
+        type: textField
+        label {
+            label: Enabled (Y/N)
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Enabled (Y/N) for this record.
+        }
+    )
+
+    pageItem P1124_EXPECTED_VERSION (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1124_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1124_LIMITED_TIMESHEET (
+        type: textField
+        label {
+            label: Limited Timesheet (Y/N)
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Limited Timesheet (Y/N) for this record.
+        }
+    )
+
+    pageItem P1124_LOCATION_IDS (
+        type: textField
+        label {
+            label: Location IDs (comma separated)
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Location IDs (comma separated) for this record.
+        }
+    )
+
+    pageItem P1124_ROLE_CODE (
+        type: selectList
+        label {
+            label: "Role "
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @user-roles
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Role Code (1/2/3) for this record.
+        }
+    )
+
+    pageItem P1124_STATE_OPERATION (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1124_USERNAME (
+        type: textField
+        label {
+            label: Username
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Username for this record.
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Archive User
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Archive this user. Their account will be disabled without deleting audit history.
+            style: danger
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process change-user-state (
+        name: Change User State Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_status varchar2(30); l_message varchar2(4000); BEGIN AUTH_PKG.set_user_state(:P1124_APP_USER_ID,'ARCHIVE',:P1124_EXPECTED_VERSION,:P1124_IDEMPOTENCY_KEY,l_status,l_message); IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001,l_message); END IF; END;
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 48009239431343372
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 50
+        }
+        successMessage {
+            successMessage: User operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 48009350015343372
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,DELETE
+        }
+    )
+
+    process initialize-user-form (
+        name: Initialize User Form
+        type: executeCode
+        source {
+            plsqlCode: BEGIN :P1124_IDEMPOTENCY_KEY:=nvl(:P1124_IDEMPOTENCY_KEY,rawtohex(sys_guid())); :P1124_STATE_OPERATION:='ARCHIVE'; IF :P1124_APP_USER_ID IS NOT NULL THEN SELECT au.APEX_USERNAME,r.ROLE_CODE,au.ENABLED,au.IS_ALLOWED_TO_PRINT_TIMESHEET,au.IS_LIMITED_TIMESHEET_ACCESS,(SELECT listagg(ul.LOCATION_ID,',') within group(order by ul.LOCATION_ID) FROM APP_USER_LOCATION ul WHERE ul.APP_USER_ID=au.ID),au.ORA_ROWSCN INTO :P1124_USERNAME,:P1124_ROLE_CODE,:P1124_ENABLED,:P1124_ALLOW_PRINT,:P1124_LIMITED_TIMESHEET,:P1124_LOCATION_IDS,:P1124_EXPECTED_VERSION FROM APP_USER au JOIN APP_USER_ROLE ur ON ur.APP_USER_ID=au.ID JOIN APP_ROLE r ON r.ID=ur.APP_ROLE_ID WHERE au.ID=:P1124_APP_USER_ID; END IF; END;
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 48009062213343372
+        }
+    )
+
+    process save-user (
+        name: Save User Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000); BEGIN AUTH_PKG.upsert_user(:P1124_APP_USER_ID,:P1124_USERNAME,:P1124_ROLE_CODE,:P1124_LOCATION_IDS,:P1124_ENABLED,:P1124_ALLOW_PRINT,:P1124_LIMITED_TIMESHEET,:P1124_EXPECTED_VERSION,:P1124_IDEMPOTENCY_KEY,l_id,l_status,l_message); IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001,l_message); END IF; :P1124_APP_USER_ID:=l_id; END;
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 48009163611343372
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+        }
+    )
+
+)

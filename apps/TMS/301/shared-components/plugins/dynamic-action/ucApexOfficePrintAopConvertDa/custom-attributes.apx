@@ -1,0 +1,639 @@
+customAttribute attribute_01 (
+    apexlangName: aopUrl
+    attribute: 1
+    name: AOP URL
+    scope: app
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 1000
+    }
+    default {
+        value: https://api.apexofficeprint.com/
+    }
+    help {
+        helpText:
+            ```
+            URL to APEX Office Print server. <br/>
+            When installed on the same server as the database using the default port you can use http://localhost:8010/ <br/>
+            To use AOP as a service, you can use http(s)://api.apexofficeprint.com/ <br/>
+            When using HTTPS, make sure to add the certificate to the wallet of your database. Alternatively you can setup a proxy rule in your webserver to do the HTTPS handshaking so the AOP plugin can call a local url. Instructions how to setup both options can be found in the documentation.<br/>
+            When running AOP on the Oracle Cloud you are obliged to use HTTPS, so the url should be https://api.apexofficeprint.com/ or https://www.cloudofficeprint.com/aop/<br/>
+            You can also dynamically specify a url by an Application Item e.g. &AI_AOP_URL.
+            ```
+    }
+)
+
+customAttribute attribute_02 (
+    apexlangName: apiKey
+    attribute: 2
+    name: API key
+    scope: app
+    validation {
+        maxLength: 50
+    }
+    appearance {
+        sequence: 2000
+    }
+    builder {
+        displayWidth: 50
+    }
+    help {
+        helpText: Enter your API key found on your account when you login at https://www.apexofficeprint.com.
+    }
+)
+
+customAttribute attribute_03 (
+    apexlangName: debug
+    attribute: 3
+    name: Debug
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: No
+    }
+    appearance {
+        sequence: 3000
+    }
+    builder {
+        showInWizard: false
+    }
+    help {
+        helpText: By default debug is turned off.
+    }
+
+    entry aopCloudRemote (
+        sequence: 25
+        display: AOP Cloud (Remote)
+        return: Yes
+        help {
+            helpText:
+                ```
+                Enabling remote debug will capture the JSON and is available in your dashboard at https://www.apexofficeprint.com. So note that with this option your data is sent to us.
+                This makes debugging your JSON easier, checking if it's valid, and contacting us if you need support. This option only works when you use http(s)://api.apexofficeprint.com/in your AOP settings.
+                ```
+        }
+    )
+
+    entry derivedFromApplicationItem (
+        sequence: 30
+        display: Derived from Application Item
+        return: APEX_ITEM
+        help {
+            helpText:
+                ```
+                This option is useful when you want to dynamically set AOP debugging.<br/>
+                The application item needs to be called AOP_DEBUG and can have values: No, Yes (=Remote) or Local.
+                ```
+        }
+    )
+
+    entry local (
+        sequence: 20
+        display: Local
+        return: Local
+        help {
+            helpText:
+                ```
+                Enabling local debug will download the JSON that is sent to the AOP server component. 
+                This makes it easier to debug your JSON, check if it's valid and contact us in case you need support.
+                Note that the output file will not be produced and the server will never be called.
+                ```
+        }
+    )
+
+)
+
+customAttribute attribute_03 (
+    apexlangName: initPlSqlCode
+    attribute: 3
+    name: Init PL/SQL Code
+    type: plsqlCode
+    appearance {
+        sequence: 30
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            You can define global variables of the aop_api_pkg in this area.<br/>
+            </p>
+            Available variables:
+            <pre>
+            -- Global variables
+            g_output_filename         varchar2(100) := null;
+            g_language                varchar2(2)   := 'en';  -- Language can be: en, fr, nl, de
+            </pre>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <pre>
+            aop_api_pkg.g_output_filename      := 'output';
+            aop_api_pkg.g_output_filename      := v('P1_FILENAME');
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_04 (
+    apexlangName: converter
+    attribute: 4
+    name: Converter
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: LibreOffice
+    }
+    appearance {
+        sequence: 4000
+    }
+    builder {
+        showInWizard: false
+    }
+    help {
+        helpText:
+            ```
+            To transform an Office document to PDF, APEX Office Print is using an external converter.
+            By default LibreOffice is used, but you can select another converter on request.
+            ```
+    }
+
+    entry custom (
+        sequence: 20
+        display: Custom
+        return: custom
+        help {
+            helpText: Specify the name of the custom converter defined at the AOP Server.
+        }
+    )
+
+    entry msOfficeWindowsOnly (
+        sequence: 10
+        display: MS Office (Windows only)
+        return: officetopdf
+        help {
+            helpText: Uses Microsoft Office to do the conversion and following module http://officetopdf.codeplex.com
+        }
+    )
+
+)
+
+customAttribute attribute_04 (
+    apexlangName: outputType
+    attribute: 4
+    name: Output Type
+    type: selectList
+    appearance {
+        sequence: 31
+    }
+    default {
+        value: pdf
+    }
+
+    entry pdfPdf (
+        sequence: 40
+        display: PDF (pdf)
+        return: pdf
+    )
+
+)
+
+customAttribute attribute_05 (
+    apexlangName: settingsPackage
+    attribute: 5
+    name: Settings package
+    scope: app
+    validation {
+        maxLength: 300
+    }
+    appearance {
+        sequence: 5000
+    }
+    builder {
+        showInWizard: false
+        displayWidth: 80
+    }
+    help {
+        helpText:
+            ```
+            When you use a different AOP server in DEV, TEST, PROD it might be easier to define the package where the settings (e.g. AOP server) is defined.<br/>
+            This makes deployments seamless and you don't need to update the plug-in component settings manually afterwards.<br/>
+            When a package is defined, we will always read those settings, regardless what is filled in above.
+            ```
+    }
+    examples {
+        examples: aop_settings_pkg
+    }
+)
+
+customAttribute attribute_06 (
+    apexlangName: aopFailoverUrl
+    attribute: 6
+    name: AOP Failover URL
+    scope: app
+    appearance {
+        sequence: 1500
+    }
+    help {
+        helpText:
+            ```
+            Failover URL to APEX Office Print server incase the AOP URL fails. <br/>
+            When installed on the same server as the database using the default port you can use http://localhost:8010/ <br/>
+            To use AOP as a service, you can use http(s)://www.apexofficeprint.com/failover-api/ <br/>
+            When using HTTPS, make sure to add the certificate to the wallet of your database. Alternatively you can setup a proxy rule in your webserver to do the HTTPS handshaking so the AOP plugin can call a local url. Instructions how to setup both options can be found in the documentation.<br/>
+            When running AOP on the Oracle Cloud you are obliged to use HTTPS, so the url should be https://www.apexofficeprint.com/failover-api/ or https://www.cloudofficeprint.com/aop/
+            ```
+    }
+)
+
+customAttribute attribute_07 (
+    apexlangName: failoverProcedure
+    attribute: 7
+    name: Failover procedure
+    scope: app
+    type: plsqlCode
+    appearance {
+        sequence: 9000
+    }
+    dependingOn {
+        attribute: @attribute_06/app
+        conditionType: isNotNull
+    }
+    help {
+        helpText:
+            ```
+            Specify the procedure that should be called when the failover url is used.
+            The procedure can for example send an email to notify the primary AOP url is not used, but the fallback url.
+            ```
+    }
+    examples {
+        examples: aop_sample_pkg.failover_procedure;
+    }
+)
+
+customAttribute attribute_08 (
+    apexlangName: loggingPackage
+    attribute: 8
+    name: Logging package
+    scope: app
+    appearance {
+        sequence: 8000
+    }
+    help {
+        helpText:
+            ```
+            If you want every request to aop_api_pkg.plsql_call_to_aop to be logged, you can specify a logging package here.<br/>
+            The logging package needs at least a function and a procedure with following definition:
+            <pre>
+            function start_request (
+              p_data_type             in varchar2,
+              p_data_source           in clob,
+              p_template_type         in varchar2,
+              p_template_source       in clob,
+              p_output_type           in varchar2,
+              p_output_filename       in varchar2,
+              p_output_type_item_name in varchar2,
+              p_output_to             in varchar2,
+              p_procedure             in varchar2,
+              p_binds                 in varchar2,
+              p_special               in varchar2,
+              p_aop_remote_debug      in varchar2,
+              p_output_converter      in varchar2,
+              p_aop_url               in varchar2,
+              p_api_key               in varchar2,
+              p_app_id                in number,
+              p_page_id               in number,
+              p_user_name             in varchar2,
+              p_init_code             in clob,
+              p_output_encoding       in varchar2,
+              p_failover_aop_url      in varchar2,
+              p_failover_procedure    in varchar2
+            ) return number;
+            
+            
+            procedure end_request (
+              p_aop_log_id            in number,  
+              p_status                in varchar2, 
+              p_aop_json              in clob,
+              p_aop_error             in varchar2, 
+              p_ora_sqlcode           in number, 
+              p_ora_sqlerrm           in varchar2
+            )
+            </pre>
+            ```
+    }
+    examples {
+        examples: see aop_log_pkg that comes with the AOP Sample app.
+    }
+)
+
+customAttribute attribute_08 (
+    apexlangName: outputTypeApexItem
+    attribute: 8
+    name: Output Type APEX Item
+    type: pageItem
+    appearance {
+        sequence: 32
+    }
+    dependingOn {
+        attribute: @attribute_04/component
+        conditionType: =
+        value: apex_item
+    }
+    help {
+        helpText: APEX item that contains the output type. See Output Type help text for valid list of output types.
+    }
+)
+
+customAttribute attribute_09 (
+    apexlangName: customConverter
+    attribute: 9
+    name: Custom Converter
+    scope: app
+    appearance {
+        sequence: 4050
+    }
+    dependingOn {
+        attribute: @attribute_04/app
+        conditionType: =
+        value: custom
+    }
+    help {
+        helpText: Specify the name of the custom converter as specified at the AOP Server e.g. abiword
+    }
+    examples {
+        examples:
+            ```
+            <p>
+            AOP Server config looks like this:
+            <br/>
+            <pre><code>
+            {
+                "converters": {
+                    "abiword":{
+                        "command": "abiword --to={outputFormat} --to-name={outputFile} {inputFile}"
+                    },
+                    "other":{
+                        "command":""
+                    }
+                }
+            }
+            </code></pre>
+            </p>
+            <p>
+            This means you can use abiword or other as the name of the custom converter.
+            </p>
+            ```
+    }
+)
+
+customAttribute attribute_09 (
+    apexlangName: sqlQuery
+    attribute: 9
+    name: SQL Query
+    type: sqlQuery
+    validation {
+        required: true
+        minColumns: 3
+        maxColumns: 7
+    }
+    appearance {
+        sequence: 12
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            Enter the SQL statement in following format. At least 3 columns are necessary up to a maximum of 7.
+            <br/>The columns between [] are optional.
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <pre>
+            select filename, mime_type, [file_blob, file_base64, url_call_from_db, url_call_from_aop, file_on_aop_server]
+              from my_table
+             where instr()
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_10 (
+    apexlangName: aopMode
+    attribute: 10
+    name: AOP Mode
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: Production
+    }
+    appearance {
+        sequence: 2500
+    }
+    help {
+        helpText:
+            ```
+            Production (=null)
+              Credits will be used.
+            ```
+    }
+
+    entry derivedFromApplicationItem (
+        sequence: 20
+        display: Derived from Application Item
+        return: APEX_ITEM
+        help {
+            helpText:
+                ```
+                This option is useful when you want to dynamically set the AOP mode.<br/>
+                The application item needs to be called AOP_MODE and can have values: development, production  or null (=production).
+                ```
+        }
+    )
+
+    entry development (
+        sequence: 10
+        display: Development
+        return: development
+        help {
+            helpText: In development mode no credits are used.
+        }
+    )
+
+)
+
+customAttribute attribute_14 (
+    apexlangName: outputTo
+    attribute: 14
+    name: Output To
+    type: selectList
+    componentLov {
+        nullText: Browser (file)
+    }
+    appearance {
+        sequence: 140
+    }
+    help {
+        helpText: By default the file that's generated by AOP, will be downloaded by the Browser and saved on your harddrive.
+    }
+
+    entry apexOfficeEditAoe (
+        sequence: 90
+        display: APEX Office Edit (AOE)
+        return: APEX_OFFICE_EDIT
+        help {
+            helpText: This option allows you to call a procedure first and next show the output in APEX Office Edit (AOE), the editor that can show and edit Word, Excel, PowerPoint, PDF, and Text straight from the browser.
+        }
+    )
+
+    entry asynchronousReturnsUrl (
+        sequence: 70
+        display: Asynchronous (Returns URL)
+        return: ASYNC
+        help {
+            helpText: AOP will process the request asynchronously. This is especially useful for long-running processes. A URL will be passed to g_async_url where the file will be available to download when AOP is finished. Use the aop_api_pkg.poll_async_file procedure to check and download the file. Optionally a procedure can be defined (see definition in procedure help).
+        }
+    )
+
+    entry definedInPostProcessEGPrinter (
+        sequence: 60
+        display: Defined in Post Process (e.g. Printer)
+        return: NA
+        help {
+            helpText: Use when an external post-process command is specified and the output is only needed to be passed to that process. For example when you want to print directly to a Printer or call an OS command.
+        }
+    )
+
+    entry directoryOnAopServer (
+        sequence: 40
+        display: Directory (on AOP Server)
+        return: DIRECTORY
+        help {
+            helpText: Save the file to a directory specified with g_output_directory. The default directory on the AOP Server is outputfiles.
+        }
+    )
+
+    entry directoryOnDatabaseServer (
+        sequence: 50
+        display: Directory (on Database Server)
+        return: DB_DIRECTORY
+        help {
+            helpText:
+                ```
+                Save the file to a database directory specified with g_output_directory. 
+                <br/>
+                Example how to create Database directory: <br/>
+                CREATE DIRECTORY AOP_TEMPLATE AS '/home/oracle/aop_output';
+                ```
+        }
+    )
+
+    entry inlineRegionPdfHtmlMdTxtOnly (
+        sequence: 30
+        display: Inline Region (pdf/html/md/txt only)
+        return: BROWSER_INLINE
+        help {
+            helpText: add data-aop-inline-pdf="Name of Dynamic Action" or data-aop-inline-txt="Name of Dynamic Action" to a region, div, textarea of other.
+        }
+    )
+
+    entry procedure (
+        sequence: 10
+        display: Procedure
+        return: PROCEDURE
+        help {
+            helpText:
+                ```
+                This option will call a procedure in a specific format. This option is useful in case you don't need the file on your own harddrive, but for example you want to mail the document automatically.
+                In that case you can create a procedure that adds the generated document as an attachment to your apex_mail.send.
+                ```
+        }
+    )
+
+    entry procedureAndBrowserFile (
+        sequence: 20
+        display: Procedure and Browser (file)
+        return: PROCEDURE_BROWSER
+        help {
+            helpText:
+                ```
+                This option allows you to call a procedure first and next download the file to your harddrive.
+                An example is when you first want to store the generated document in a table before letting the browser to download it.
+                ```
+        }
+    )
+
+    entry webServicePostRequest (
+        sequence: 80
+        display: Web Service (POST Request)
+        return: WEB_SERVICE
+        help {
+            helpText: "AOP will call the web service (a POST Request) defined in g_web_service_url once AOP is finished producing the file. Extra headers can be added to the POST request by defining them in g_web_service_headers e.g. {\"file_id\": \"F123\", \"access_token\": \"A456789\"}"
+        }
+    )
+
+)
+
+customAttribute attribute_15 (
+    apexlangName: procedureName
+    attribute: 15
+    name: Procedure Name
+    appearance {
+        sequence: 150
+    }
+    dependingOn {
+        attribute: @attribute_14/component
+        conditionType: inList
+        list: [
+            PROCEDURE
+            PROCEDURE_BROWSER
+            PROCEDURE_INLINE
+            ASYNC
+        ]
+    }
+    help {
+        helpText:
+            ```
+            Enter only the procedure name in this field (so without parameters) for example "download_prc".
+            The procedure in the database needs to be structured with the parameters as in the example. 
+            The procedure name can be any name, but the parameters need to match exactly as in the example.
+            You can add other parameters with a default value.
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <p>
+            Create following procedure in the database:
+            </p>
+            <pre>
+            create procedure send_email_prc(
+                p_output_blob      in blob,
+                p_output_filename  in varchar2,
+                p_output_mime_type in varchar2)
+            is
+              l_id number;
+            begin
+              l_id := apex_mail.send( 
+                        p_to => 'support@apexofficeprint.com', 
+                        p_from => 'support@apexofficeprint.com', 
+                        p_subj => 'Mail from APEX with attachment', 
+                        p_body => 'Please review the attachment.', 
+                        p_body_html => '<b>Please</b> review the attachment.') ;
+              apex_mail.add_attachment( 
+                  p_mail_id    => l_id, 
+                  p_attachment => p_output_blob, 
+                  p_filename   => p_output_filename, 
+                  p_mime_type  => p_output_mime_type) ;
+              commit;    
+            end send_email_prc;
+            </pre>
+            ```
+    }
+)

@@ -1,0 +1,11 @@
+{
+  "workspace": {
+    "name": "EPROMHQ"
+  },
+  "app": {
+    "id": 301,
+    "databaseSession": {
+      "parsingSchema": "TMS"
+    }
+  }
+}

@@ -1,0 +1,512 @@
+page 1123 (
+    name: Transaction Form
+    alias: TRANSACTION-FORM
+    title: Transaction Form
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region employee-info (
+        name: Employee Info
+        type: dynamicContent
+        source {
+            plsqlFunctionBody:
+                ```plsql
+                DECLARE
+                    v_employee_name   EMPLOYEE.NAME%TYPE;
+                    v_employee_number EMPLOYEE.EMPLOYEE_NUMBER%TYPE;
+                    v_html            CLOB;
+                BEGIN
+                    SELECT NAME, EMPLOYEE_NUMBER
+                      INTO v_employee_name, v_employee_number
+                      FROM EMPLOYEE
+                     WHERE ID = :P1123_EMPLOYEE_ID;
+                
+                    v_html := '
+                    <div class="employee-card">
+                        <div class="employee-icon">
+                            <span class="fa fa-user"></span>
+                        </div>
+                
+                        <div class="employee-details">
+                            <div class="employee-label">
+                                EMPLOYEE INFORMATION
+                            </div>
+                
+                            <div class="employee-name">'
+                                || APEX_ESCAPE.HTML(v_employee_name) ||
+                            '</div>
+                
+                            <div class="employee-number">
+                                <span class="fa fa-id-card-o"></span>
+                                Employee No.
+                                <strong>'
+                                    || APEX_ESCAPE.HTML(TO_CHAR(v_employee_number)) ||
+                                '</strong>
+                            </div>
+                        </div>
+                    </div>';
+                
+                    RETURN v_html;
+                
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        RETURN '<div class="employee-not-found">
+                                    Employee not found.
+                                </div>';
+                END;
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region form-body (
+        name: Transaction Form
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P1123_DEVICE_ID (
+        type: selectList
+        label {
+            label: Device
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @device
+            nullDisplayValue: - Select Device -
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Device for this record.
+        }
+    )
+
+    pageItem P1123_DEVICE_NAME (
+        type: displayOnly
+        label {
+            label: Device Name
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Device Name for this record.
+        }
+    )
+
+    pageItem P1123_EMPLOYEE_ID (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Select the Employee for this record.
+        }
+    )
+
+    pageItem P1123_EVENT_TIME (
+        type: datePicker
+        label {
+            label: Event Time
+            alignment: left
+        }
+        settings {
+            showTime: true
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-YYYY HH24:MI:SS
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Event Time for this record.
+        }
+    )
+
+    pageItem P1123_EVENT_TYPE (
+        type: selectList
+        label {
+            label: Type
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @copy-of-devices-types2
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Enter the valid Type (0 In / 1 Out) for this record.
+        }
+    )
+
+    pageItem P1123_EXPECTED_VERSION (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1123_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1123_TRANSACTION_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+        config {
+            buildOption: @commented-out
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete or Archive
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Confirm the package-backed delete/archive operation.
+            style: danger
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 50
+        }
+        successMessage {
+            successMessage: Transaction operation completed
+        }
+        advanced {
+            executionMappingIdentifier: 48006690658343370
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,DELETE
+        }
+    )
+
+    process delete-transaction (
+        name: Delete Transaction Through Package
+        type: executeCode
+        source {
+            plsqlCode: DECLARE l_status varchar2(30); l_message varchar2(4000); BEGIN TRANSACTION_API_PKG.delete_manual_transaction(:P1123_TRANSACTION_ID,l_status,l_message); IF l_status='REJECTED' THEN raise_application_error(-20001,l_message); END IF; END;
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 48006534917343370
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+    process initialize-transaction-form (
+        name: Initialize Transaction Form
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P1123_IDEMPOTENCY_KEY := NVL(
+                        :P1123_IDEMPOTENCY_KEY,
+                        RAWTOHEX(SYS_GUID())
+                    );
+                
+                    IF :P1123_TRANSACTION_ID IS NOT NULL THEN
+                
+                        SELECT
+                            EMPLOYEE_ID,
+                            TYPE,
+                            TO_CHAR(
+                                FROM_TZ(
+                                    CAST("DATE" AS TIMESTAMP),
+                                    'UTC'
+                                ) AT TIME ZONE 'Africa/Cairo',
+                                'DD-MON-YYYY HH24:MI:SS',
+                                'NLS_DATE_LANGUAGE=ENGLISH'
+                            ),
+                            DEVICE_ID,
+                            DEVICE_NAME,
+                            ORA_ROWSCN
+                        INTO
+                            :P1123_EMPLOYEE_ID,
+                            :P1123_EVENT_TYPE,
+                            :P1123_EVENT_TIME,
+                            :P1123_DEVICE_ID,
+                            :P1123_DEVICE_NAME,
+                            :P1123_EXPECTED_VERSION
+                        FROM "TRANSACTION"
+                        WHERE ID = :P1123_TRANSACTION_ID;
+                
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 48006324172343370
+        }
+    )
+
+    process save-transaction (
+        name: Save Transaction Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_id       NUMBER;
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_event_time TIMESTAMP;
+                BEGIN
+                
+                    -- Convert APEX text to a TIMESTAMP
+                    l_event_time := TO_TIMESTAMP(
+                        :P1123_EVENT_TIME,
+                        'DD-MON-YYYY HH24:MI:SS',
+                        'NLS_DATE_LANGUAGE=ENGLISH'
+                    );
+                
+                    -- Convert Egypt local time to UTC
+                    l_event_time := CAST(
+                        FROM_TZ(
+                            l_event_time,
+                            'Africa/Cairo'
+                        ) AT TIME ZONE 'UTC'
+                        AS TIMESTAMP
+                    );
+                
+                    -- Call the existing package
+                    TRANSACTION_API_PKG.upsert_manual_transaction(
+                        p_transaction_id  => :P1123_TRANSACTION_ID,
+                        p_employee_id     => :P1123_EMPLOYEE_ID,
+                        p_event_type      => :P1123_EVENT_TYPE,
+                        p_event_time      => l_event_time,
+                        p_device_id       => :P1123_DEVICE_ID,
+                        p_device_name     => :P1123_DEVICE_NAME,
+                        p_expected_version => :P1123_EXPECTED_VERSION,
+                        p_idempotency_key => :P1123_IDEMPOTENCY_KEY,
+                        p_entity_id       => l_id,
+                        p_status          => l_status,
+                        p_message         => l_message
+                    );
+                
+                    IF l_status IN ('REJECTED', 'CONFLICT') THEN
+                        RAISE_APPLICATION_ERROR(-20001, l_message);
+                    END IF;
+                
+                    :P1123_TRANSACTION_ID := l_id;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 48006464578343370
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+        }
+    )
+
+)

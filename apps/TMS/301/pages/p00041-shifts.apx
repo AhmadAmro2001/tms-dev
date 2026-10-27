@@ -1,0 +1,379 @@
+page 41 (
+    name: Shifts
+    alias: SHIFTS
+    title: Shifts
+    pageGroup: @time-management
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Shifts
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region shifts (
+        name: Shifts
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                    s.ID, 
+                    s.NAME, 
+                    s.FROM_DATE, 
+                    s.DURATION, 
+                    -- s.IS_OFF,
+                    CASE 
+                        WHEN s.IS_OFF = 1 THEN 'Yes'
+                        ELSE 'No'
+                    END AS OFF_SHIFT, 
+                    -- apex_page.get_url(p_page => 1134, p_items => 'P1134_ENTITY_ID', p_values => to_char(s.ID)) AS EDIT_URL 
+                    'Delete' as DELETE_BUTTON
+                    from SHIFT s 
+                    order by s.FROM_DATE
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: shift_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47977387298343222
+        }
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 56
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column DURATION (
+            type: plainText
+            heading {
+                heading: Duration
+            }
+            layout {
+                sequence: 36
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FROM_DATE (
+            type: plainText
+            heading {
+                heading: From Date
+            }
+            layout {
+                sequence: 26
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 16
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column OFF_SHIFT (
+            type: plainText
+            heading {
+                heading: Off Shift
+            }
+            layout {
+                sequence: 46
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 5
+            )
+
+            displayColumn DURATION (
+                sequence: 3
+            )
+
+            displayColumn FROM_DATE (
+                sequence: 2
+            )
+
+            displayColumn NAME (
+                sequence: 1
+            )
+
+            displayColumn OFF_SHIFT (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    button create-shifts (
+        buttonName: CREATE_SHIFTS
+        label: Create Shifts
+        layout {
+            sequence: 10
+            region: @shifts
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1134
+                clearCache: 1134
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_SHIFT",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("shift_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-shifts-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @shifts
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @shifts
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process delete-shift (
+        name: DELETE_SHIFT
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    DELETE_PKG.delete_shift(
+                        p_id => apex_application.g_x01
+                    );
+                
+                apex_json.open_object;
+                apex_json.write('msg', 'ok') ;
+                apex_json.close_object;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 52042832627664611
+        }
+    )
+
+)

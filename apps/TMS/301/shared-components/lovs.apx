@@ -1,0 +1,338 @@
+lov boolean (
+    name: BOOLEAN
+    source {
+        location: staticValues
+    }
+
+    entry false (
+        sequence: 2
+        display: No
+        return: FALSE
+    )
+
+    entry true (
+        sequence: 1
+        display: Yes
+        return: TRUE
+    )
+
+)
+
+lov copy-of-devices-types2 (
+    name: TRANSACTION-TYPE
+    source {
+        location: staticValues
+    }
+
+    entry in (
+        sequence: 2
+        display: Out
+        return: 1
+    )
+
+    entry in-out (
+        sequence: 1
+        display: In
+        return: 0
+    )
+
+)
+
+lov department (
+    name: LOV-DEPARTMENT
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, ID as return_value
+              from DEPARTMENT
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov device (
+    name: LOV-DEVICE
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, to_char(ID) as return_value
+              from DEVICE
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov devices-types2 (
+    name: DEVICES_TYPES2
+    source {
+        location: staticValues
+    }
+
+    entry in (
+        sequence: 2
+        display: In
+        return: 1
+    )
+
+    entry in-out (
+        sequence: 1
+        display: In/Out
+        return: 0
+    )
+
+    entry out (
+        sequence: 3
+        display: Out
+        return: 2
+    )
+
+)
+
+lov employee (
+    name: LOV-EMPLOYEE
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select EMPLOYEE_NUMBER || ' - ' || NAME as display_value, to_char(ID) as return_value
+              from EMPLOYEE
+             where IS_ACTIVE = '1'
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov grade (
+    name: LOV-GRADE
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, to_char(ID) as return_value
+              from GRADE
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov location (
+    name: LOV-LOCATION
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, to_char(ID) as return_value
+              from LOCATION
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov lov-emp-number (
+    name: LOV-EMP-NUMBER
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select EMPLOYEE_NUMBER || ' - ' || NAME as display_value, EMPLOYEE_NUMBER as return_value
+              from EMPLOYEE
+             where IS_ACTIVE = '1'
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov lov-months (
+    name: LOV-MONTHS
+    source {
+        location: staticValues
+    }
+
+    entry 1 (
+        sequence: 1
+        display: January
+        return: 01
+    )
+
+    entry 10 (
+        sequence: 10
+        display: October
+        return: 10
+    )
+
+    entry 11 (
+        sequence: 11
+        display: November
+        return: 11
+    )
+
+    entry 12 (
+        sequence: 12
+        display: December
+        return: 12
+    )
+
+    entry 2 (
+        sequence: 2
+        display: February
+        return: 02
+    )
+
+    entry 3 (
+        sequence: 3
+        display: March
+        return: 03
+    )
+
+    entry 4 (
+        sequence: 4
+        display: April
+        return: 04
+    )
+
+    entry 5 (
+        sequence: 5
+        display: May
+        return: 05
+    )
+
+    entry 6 (
+        sequence: 6
+        display: June
+        return: 06
+    )
+
+    entry 7 (
+        sequence: 7
+        display: July
+        return: 07
+    )
+
+    entry 8 (
+        sequence: 8
+        display: August
+        return: 08
+    )
+
+    entry 9 (
+        sequence: 9
+        display: September
+        return: 09
+    )
+
+)
+
+lov lov-years (
+    name: LOV-YEARS
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT EXTRACT(YEAR FROM SYSDATE) - LEVEL + 1 AS display_value,
+                   EXTRACT(YEAR FROM SYSDATE) - LEVEL + 1 AS return_value
+            FROM dual
+            CONNECT BY LEVEL <= 100
+            ORDER BY 1 DESC;
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov project (
+    name: LOV-PROJECT
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, to_char(ID) as return_value
+              from PROJECT
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov shift (
+    name: LOV-SHIFT
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select NAME as display_value, to_char(ID) as return_value
+              from SHIFT
+             order by NAME
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+    }
+)
+
+lov source-types (
+    name: SOURCE_TYPES
+    source {
+        location: staticValues
+    }
+
+    entry 0 (
+        sequence: 2
+        display: TMS
+        return: 0
+    )
+
+    entry 1 (
+        sequence: 1
+        display: APEX
+        return: 1
+    )
+
+)
+
+lov user-roles (
+    name: USER-ROLES
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            select name , id
+            from role
+            ```
+    }
+    columnMapping {
+        return: ID
+        display: NAME
+    }
+)

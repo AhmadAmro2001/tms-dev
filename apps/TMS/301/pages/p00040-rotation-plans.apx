@@ -1,0 +1,1001 @@
+page 40 (
+    name: Rotation Plans
+    alias: ROTATION-PLANS
+    title: Rotation Plans
+    pageGroup: @time-management
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Rotation Plans
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rotation-days (
+        name: Rotation Days
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select rd.ID, rp.NAME AS ROTATION_NAME, s.NAME AS SHIFT_NAME, rd.DAY,
+                       apex_page.get_url(p_page => 1136,
+                                         p_items => 'P1136_ENTITY_ID',
+                                         p_values => to_char(rd.ID)) AS EDIT_URL
+                  from ROTATION_DAY rd
+                  join ROTATION_PLAN rp on rp.ID = rd.ROTATION_ID
+                  join SHIFT s on s.ID = rd.SHIFT_ID
+                 order by rp.NAME, rd.DAY
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        config {
+            buildOption: @commented-out
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 47975657258343183
+        }
+
+        column DAY (
+            type: plainText
+            heading {
+                heading: Day
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Actions
+            }
+            layout {
+                sequence: 5
+            }
+            columnFormatting {
+                htmlExpression: <a href="#EDIT_URL!ATTR#" class="t-Button t-Button--noLabel t-Button--icon t-Button--link" aria-label="Edit" title="Edit"><span class="fa fa-edit" aria-hidden="true"></span></a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ROTATION_NAME (
+            type: plainText
+            heading {
+                heading: Rotation Name
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SHIFT_NAME (
+            type: plainText
+            heading {
+                heading: Shift Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DAY (
+                sequence: 4
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 5
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn ROTATION_NAME (
+                sequence: 2
+            )
+
+            displayColumn SHIFT_NAME (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    region rotation-history (
+        name: Rotation History
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery: select h.ID, e.EMPLOYEE_NUMBER, e.NAME AS EMPLOYEE_NAME, rp.NAME AS ROTATION_NAME, h.STARTED, apex_page.get_url(p_page => 1137, p_items => 'P1137_ENTITY_ID', p_values => to_char(h.ID)) AS EDIT_URL from ROTATION_HISTORY h join EMPLOYEE e on e.ID=h.EMPLOYEE_ID join ROTATION_PLAN rp on rp.ID=h.ROTATION_ID where e.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':'))) order by h.STARTED desc
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        config {
+            buildOption: @commented-out
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47974885114343182
+        }
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Actions
+            }
+            layout {
+                sequence: 6
+            }
+            columnFormatting {
+                htmlExpression: <a href="#EDIT_URL!ATTR#" class="t-Button t-Button--noLabel t-Button--icon t-Button--link" aria-label="Edit" title="Edit"><span class="fa fa-edit" aria-hidden="true"></span></a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: EMPLOYEE NAME
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: EMPLOYEE NUMBER
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ROTATION_NAME (
+            type: plainText
+            heading {
+                heading: ROTATION NAME
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column STARTED (
+            type: plainText
+            heading {
+                heading: STARTED
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn EDIT_URL (
+                sequence: 6
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 3
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 2
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn ROTATION_NAME (
+                sequence: 4
+            )
+
+            displayColumn STARTED (
+                sequence: 5
+            )
+
+        )
+
+    )
+
+    region rotation-plans (
+        name: Rotation Plans data
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select rp.ID, rp.NAME, rp.DAYS, rp.START_DATE, rp.IS_VISIBLE, rp.WORK_TYPE, apex_page.get_url(p_page => 1135, p_items => 'P1135_ENTITY_ID', p_values => to_char(rp.ID)) AS EDIT_URL,
+                apex_page.get_url(p_page => 1151, p_items => 'P1151_ENTITY_ID', p_values => to_char(rp.ID)) AS VIEW_URL ,
+                apex_page.get_url(p_page => 30, p_items => 'P30_ROTATION', p_values => rp.ID) AS ASSIGN_URL ,
+                'Delete' as DELETE_BUTTON
+                from ROTATION_PLAN rp 
+                where (:P40_VISIBLE is null or rp.IS_VISIBLE = :P40_VISIBLE)
+                order by rp.id asc
+                ```
+            pageItemsToSubmit: P40_VISIBLE
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: rotation_plan
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47973925387343182
+        }
+
+        column ASSIGN_URL (
+            type: plainText
+            heading {
+                heading: Assign to
+            }
+            layout {
+                sequence: 57
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <a href="#ASSIGN_URL!ATTR#" class="ig-action-btn" aria-label="View" title="View"><span class="fa fa-users" aria-hidden="true"></span></a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column DAYS (
+            type: plainText
+            heading {
+                heading: Days
+            }
+            layout {
+                sequence: 27
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 67
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 7
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 17
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column IS_VISIBLE (
+            type: plainText
+            heading {
+                heading: IS VISIBLE
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column START_DATE (
+            type: plainText
+            heading {
+                heading: Start
+            }
+            layout {
+                sequence: 37
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column VIEW_URL (
+            type: plainText
+            heading {
+                heading: Details
+            }
+            layout {
+                sequence: 47
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#VIEW_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column WORK_TYPE (
+            type: plainText
+            heading {
+                heading: Work Type
+            }
+            layout {
+                sequence: 6
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ASSIGN_URL (
+                sequence: 6
+            )
+
+            displayColumn DAYS (
+                sequence: 2
+            )
+
+            displayColumn DELETE_BUTTON (
+                sequence: 7
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 4
+            )
+
+            displayColumn NAME (
+                sequence: 1
+            )
+
+            displayColumn VIEW_URL (
+                sequence: 5
+            )
+
+            displayColumn WORK_TYPE (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    pageItem P40_VISIBLE (
+        type: selectList
+        label {
+            label: Visible
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Visible;1,Hidden;0
+            nullDisplayValue: --All--
+        }
+        layout {
+            sequence: 20
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    button create-rotation-day (
+        buttonName: CREATE_ROTATION_DAY
+        label: Create Rotation Day
+        layout {
+            sequence: 60
+            slot: body
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1136
+                clearCache: 1136
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button create-rotation-history (
+        buttonName: CREATE_ROTATION_HISTORY
+        label: Create Rotation History
+        layout {
+            sequence: 10
+            slot: body
+            startNewRow: false
+            column: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--gapLeft
+            ]
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1137
+                clearCache: 1137
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button create-rotation-plans (
+        buttonName: CREATE_ROTATION_PLANS
+        label: Create Rotation Plans
+        layout {
+            sequence: 10
+            region: @rotation-plans
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1135
+                clearCache: 1135
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 50
+        }
+        when {
+            selectionType: items
+            items: P40_VISIBLE
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @rotation-plans
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: New
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_PLAN",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("rotation_plan").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-rotation-days-after-dialog (
+        name: Refresh rotation days after dialog close
+        execution {
+            sequence: 40
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @rotation-days
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @rotation-days
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-rotation-history-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @rotation-history
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @rotation-history
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-rotation-plans-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @rotation-plans
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @rotation-plans
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process delete-plan (
+        name: DELETE_PLAN
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'PLAN';
+                BEGIN
+                    DELETE_PKG.delete_plan(
+                        p_id => apex_application.g_x01
+                    );
+                
+                    AUDIT_PKG.record_event('REFERENCE_PLAN_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                
+                
+                    apex_json.open_object;
+                    apex_json.write('msg', 'ok') ;
+                    apex_json.close_object;
+                END;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 78267584639676826
+        }
+    )
+
+)

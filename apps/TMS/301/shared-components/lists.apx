@@ -1,0 +1,568 @@
+list navigation-bar (
+    name: Navigation Bar
+
+    entry --- (
+        label: ---
+        layout {
+            sequence: 20
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: separator
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+    entry app-user (
+        label: &APP_USER.
+        icon {
+            imageIconCssClasses: fa-user
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        userDefinedAttributes {
+            2: has-username
+        }
+    )
+
+    entry sign-out (
+        label: Sign Out
+        icon {
+            imageIconCssClasses: fa-sign-out
+        }
+        layout {
+            sequence: 30
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: &LOGOUT_URL.
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+)
+
+list navigation-menu (
+    name: Navigation Menu
+
+    entry absence (
+        label: Absence
+        layout {
+            sequence: 61
+            parentEntry: @reports
+        }
+        link {
+            target: {
+                page: 50
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadAbsence') = 1
+        }
+    )
+
+    entry administration (
+        label: Administration
+        icon {
+            imageIconCssClasses: fa-cog
+        }
+        layout {
+            sequence: 70
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    entry approved-overtimes (
+        label: Approved Overtimes
+        layout {
+            sequence: 47
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 36
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadOvertime') = 1
+        }
+    )
+
+    entry attendance (
+        label: Attendance
+        icon {
+            imageIconCssClasses: fa-clock-o
+        }
+        layout {
+            sequence: 20
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+    )
+
+    entry company (
+        label: Company
+        icon {
+            imageIconCssClasses: fa-building
+        }
+        layout {
+            sequence: 30
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+    )
+
+    entry departments (
+        label: Departments
+        layout {
+            sequence: 31
+            parentEntry: @company
+        }
+        link {
+            target: {
+                page: 20
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+    )
+
+    entry devices (
+        label: Devices
+        layout {
+            sequence: 21
+            parentEntry: @attendance
+        }
+        link {
+            target: {
+                page: 10
+            }
+        }
+    )
+
+    entry employees (
+        label: Employees
+        icon {
+            imageIconCssClasses: fa-users
+        }
+        layout {
+            sequence: 40
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1 or AUTH_PKG.CAN_READ_SQL('ReadVacations') = 1 or AUTH_PKG.CAN_READ_SQL('ReadMissions') = 1 or AUTH_PKG.CAN_READ_SQL('ReadTrainings') = 1 or AUTH_PKG.CAN_READ_SQL('ReadPermissions') = 1 or AUTH_PKG.CAN_READ_SQL('ReadOvertime') = 1
+        }
+    )
+
+    entry employees-list (
+        label: Employees
+        layout {
+            sequence: 41
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 30
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+    )
+
+    entry erc-devices-workload (
+        label: ERC Devices Workload
+        layout {
+            sequence: 63
+            parentEntry: @reports
+        }
+        link {
+            target: {
+                page: 53
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+    )
+
+    entry home (
+        label: Home
+        icon {
+            imageIconCssClasses: fa-home
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry locations (
+        label: Locations
+        layout {
+            sequence: 33
+            parentEntry: @company
+        }
+        link {
+            target: {
+                page: 22
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+    )
+
+    entry logs (
+        label: Logs
+        layout {
+            sequence: 72
+            parentEntry: @administration
+        }
+        link {
+            target: {
+                page: 61
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1')
+        }
+    )
+
+    entry missions (
+        label: Missions
+        layout {
+            sequence: 43
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 32
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadMissions') = 1
+        }
+    )
+
+    entry month-cut-dates (
+        label: Month Cut Dates
+        layout {
+            sequence: 54
+            parentEntry: @time-management
+        }
+        link {
+            target: {
+                page: 43
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry permissions (
+        label: Permissions
+        layout {
+            sequence: 45
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 34
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadPermissions') = 1
+        }
+    )
+
+    entry projects (
+        label: Projects
+        layout {
+            sequence: 32
+            parentEntry: @company
+        }
+        link {
+            target: {
+                page: 21
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+    )
+
+    entry public-holidays (
+        label: Public Holidays
+        layout {
+            sequence: 53
+            parentEntry: @time-management
+        }
+        link {
+            target: {
+                page: 42
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry reports (
+        label: Reports
+        icon {
+            imageIconCssClasses: fa-bar-chart
+        }
+        layout {
+            sequence: 60
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadAbsence') = 1 or AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1 or AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+    )
+
+    entry rotation-plans (
+        label: Rotation Plans
+        layout {
+            sequence: 51
+            parentEntry: @time-management
+        }
+        link {
+            target: {
+                page: 40
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry shifts (
+        label: Shifts
+        layout {
+            sequence: 52
+            parentEntry: @time-management
+        }
+        link {
+            target: {
+                page: 41
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry special-leaves (
+        label: Special Leaves
+        layout {
+            sequence: 46
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 35
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadVacations') = 1
+        }
+    )
+
+    entry time-management (
+        label: Time Management
+        icon {
+            imageIconCssClasses: fa-calendar
+        }
+        layout {
+            sequence: 50
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry time-sheet (
+        label: Time Sheet
+        layout {
+            sequence: 62
+            parentEntry: @reports
+        }
+        link {
+            target: {
+                page: 51
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTimesheet') = 1
+        }
+    )
+
+    entry timesheet-test (
+        label: TimeSheet Test
+        icon {
+            imageIconCssClasses: fa-table
+        }
+        layout {
+            sequence: 82
+        }
+        isCurrent {
+            type: pages
+            pages: 5
+        }
+        link {
+            target: {
+                page: 5
+            }
+        }
+    )
+
+    entry trainings (
+        label: Trainings
+        layout {
+            sequence: 44
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 33
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTrainings') = 1
+        }
+    )
+
+    entry transactions (
+        label: Transactions
+        layout {
+            sequence: 22
+            parentEntry: @attendance
+        }
+        link {
+            target: {
+                page: 11
+            }
+        }
+    )
+
+    entry users (
+        label: Users
+        layout {
+            sequence: 71
+            parentEntry: @administration
+        }
+        link {
+            target: {
+                page: 60
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    entry vacations (
+        label: Vacations
+        layout {
+            sequence: 42
+            parentEntry: @employees
+        }
+        link {
+            target: {
+                page: 31
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadVacations') = 1
+        }
+    )
+
+)

@@ -1,0 +1,1347 @@
+page 5 (
+    name: TimeSheet Test
+    alias: TIMESHEET-TEST
+    title: TimeSheet Test
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .day-status {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-weight: 600;
+                font-size: 12px;
+            }
+            
+            .day-status-WORK {
+                background-color: #d4edda;
+                color: #155724;
+            }
+            
+            .day-status-VACATION {
+                background-color: #cce5ff;
+                color: #004085;
+            }
+            
+            .day-status-OFFICIAL-HOLIDAY {
+                background-color: #fff3cd;
+                color: #856404;
+            }
+            
+            .day-status-OFF {
+                background-color: #e2e3e5;
+                color: #383d41;
+            }
+            
+            .day-status-NO-TRANSACTION {
+                background-color: #f8d7da;
+                color: #721c24;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region inputs (
+        name: Inputs
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region timesheet-test (
+        name: TimeSheet Test
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    t.ID,
+                    t.EMP_NO AS EMP_NO,
+                    t.EMP_NAME,
+                    t.DEPARTMENT,
+                    t.LOCATION,
+                    t.PROJECT,
+                    t.MONTH,
+                    t.YEAR,
+                    TO_CHAR(
+                        t.TRANSACTION_DAY_DATE,
+                        'DY',
+                        'NLS_DATE_LANGUAGE=ENGLISH'
+                    ) AS DAY_NAME,
+                    t.TRANSACTION_DAY_DATE,
+                    t.TIME_IN,
+                    t.TIME_OUT,
+                    t.WORKED_HOURS,
+                    t.OVERTIME_BEFORE_SIX,
+                    t.OVERTIME_AFTER_SIX,
+                    t.R_P,
+                    t.NATIONALITY,
+                    t.RELIGION,
+                    t.DAY_STATUS,
+                    t.PERMISSION_STATUS,
+                    t.ROTATION_TYPE,
+                    t.ROTATION_DAY,
+                    t.OVERTIME_FROM
+                FROM TIME_SHEET_CACHE t
+                LEFT JOIN EMPLOYEE EMP ON EMP.EMPLOYEE_NUMBER = T.EMP_NO
+                LEFT JOIN DEPARTMENT D ON UPPER(D.NAME) = UPPER(T.DEPARTMENT)
+                LEFT JOIN LOCATION LO ON UPPER(LO.NAME) = UPPER(T.LOCATION)
+                LEFT JOIN PROJECT PR ON UPPER(PR.NAME) = UPPER(T.PROJECT)
+                WHERE t.MONTH = :P5_MONTHS
+                  AND t.YEAR = :P5_YEARS
+                
+                  AND (
+                        :P5_EMP_IDS IS NULL
+                        OR t.EMP_NO IN (
+                            SELECT E.EMPLOYEE_NUMBER
+                            FROM EMPLOYEE E
+                            WHERE E.ID IN (
+                                SELECT TO_NUMBER(COLUMN_VALUE)
+                                FROM TABLE(
+                                    APEX_STRING.SPLIT(:P5_EMP_IDS, ':')
+                                )
+                            )
+                        )
+                      )
+                
+                  AND (
+                        :P5_DEPTARTMENT IS NULL
+                        OR D.ID = :P5_DEPTARTMENT
+                      )
+                
+                  AND (
+                        :P5_LOCATION IS NULL
+                        OR LO.ID = :P5_LOCATION
+                      )
+                
+                  AND (
+                        :P5_PROJECT IS NULL
+                        OR PR.ID = :P5_PROJECT
+                      )
+                
+                   AND EMP.IS_ACTIVE = 1
+                
+                ORDER BY
+                    t.TRANSACTION_DAY_DATE ASC,
+                    t.ID ASC;
+                
+                ```
+            pageItemsToSubmit: [
+                P5_MONTHS
+                P5_YEARS
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 56464463001340594
+        }
+
+        column DAY_NAME (
+            type: plainText
+            heading {
+                heading: Day Name
+            }
+            layout {
+                sequence: 491
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CE
+            }
+        )
+
+        column DAY_STATUS (
+            type: plainText
+            heading {
+                heading: Day Status
+            }
+            layout {
+                sequence: 191
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <span class="day-status day-status-#DAY_STATUS#">
+                        #DAY_STATUS#
+                    </span>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column DEPARTMENT (
+            type: plainText
+            heading {
+                heading: Department
+            }
+            layout {
+                sequence: 351
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BQ
+            }
+        )
+
+        column EMP_NAME (
+            type: plainText
+            heading {
+                heading: Emp Name
+            }
+            layout {
+                sequence: 341
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BP
+            }
+        )
+
+        column EMP_NO (
+            type: plainText
+            heading {
+                heading: Emp No
+                alignment: end
+            }
+            layout {
+                sequence: 481
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: CD
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 361
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BR
+            }
+        )
+
+        column MONTH (
+            type: plainText
+            heading {
+                heading: Month
+                alignment: end
+            }
+            layout {
+                sequence: 381
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BT
+            }
+        )
+
+        column NATIONALITY (
+            type: plainText
+            heading {
+                heading: Nationality
+            }
+            layout {
+                sequence: 91
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column OVERTIME_AFTER_SIX (
+            type: plainText
+            heading {
+                heading: Overtime After Six
+            }
+            layout {
+                sequence: 441
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BZ
+            }
+        )
+
+        column OVERTIME_BEFORE_SIX (
+            type: plainText
+            heading {
+                heading: Overtime Before Six
+            }
+            layout {
+                sequence: 431
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BY
+            }
+        )
+
+        column OVERTIME_FROM (
+            type: plainText
+            heading {
+                heading: Overtime From
+            }
+            layout {
+                sequence: 501
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CF
+            }
+        )
+
+        column PERMISSION_STATUS (
+            type: plainText
+            heading {
+                heading: Permission Status
+            }
+            layout {
+                sequence: 251
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column PROJECT (
+            type: plainText
+            heading {
+                heading: Project
+            }
+            layout {
+                sequence: 371
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BS
+            }
+        )
+
+        column RELIGION (
+            type: plainText
+            heading {
+                heading: Religion
+            }
+            layout {
+                sequence: 101
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column ROTATION_DAY (
+            type: plainText
+            heading {
+                heading: Rotation Day
+            }
+            layout {
+                sequence: 471
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CC
+            }
+        )
+
+        column ROTATION_TYPE (
+            type: plainText
+            heading {
+                heading: Rotation Type
+            }
+            layout {
+                sequence: 461
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CB
+            }
+        )
+
+        column R_P (
+            type: plainText
+            heading {
+                heading: R P
+            }
+            layout {
+                sequence: 451
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CA
+            }
+        )
+
+        column TIME_IN (
+            type: plainText
+            heading {
+                heading: Time In
+            }
+            layout {
+                sequence: 411
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BW
+            }
+        )
+
+        column TIME_OUT (
+            type: plainText
+            heading {
+                heading: Time Out
+            }
+            layout {
+                sequence: 421
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BX
+            }
+        )
+
+        column TRANSACTION_DAY_DATE (
+            type: plainText
+            heading {
+                heading: Transaction Day Date
+            }
+            layout {
+                sequence: 401
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BV
+            }
+        )
+
+        column WORKED_HOURS (
+            type: plainText
+            heading {
+                heading: Worked Hours
+            }
+            layout {
+                sequence: 321
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column YEAR (
+            type: plainText
+            heading {
+                heading: Year
+                alignment: end
+            }
+            layout {
+                sequence: 391
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BU
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn DAY_NAME (
+                sequence: 1
+            )
+
+            displayColumn DAY_STATUS (
+                sequence: 13
+            )
+
+            displayColumn DEPARTMENT (
+                sequence: 15
+            )
+
+            displayColumn EMP_NAME (
+                sequence: 4
+            )
+
+            displayColumn EMP_NO (
+                sequence: 2
+            )
+
+            displayColumn LOCATION (
+                sequence: 16
+            )
+
+            displayColumn NATIONALITY (
+                sequence: 11
+            )
+
+            displayColumn OVERTIME_AFTER_SIX (
+                sequence: 9
+            )
+
+            displayColumn OVERTIME_BEFORE_SIX (
+                sequence: 8
+            )
+
+            displayColumn PERMISSION_STATUS (
+                sequence: 14
+            )
+
+            displayColumn PROJECT (
+                sequence: 17
+            )
+
+            displayColumn RELIGION (
+                sequence: 12
+            )
+
+            displayColumn ROTATION_DAY (
+                sequence: 18
+            )
+
+            displayColumn ROTATION_TYPE (
+                sequence: 19
+            )
+
+            displayColumn R_P (
+                sequence: 10
+            )
+
+            displayColumn TIME_IN (
+                sequence: 5
+            )
+
+            displayColumn TIME_OUT (
+                sequence: 6
+            )
+
+            displayColumn TRANSACTION_DAY_DATE (
+                sequence: 3
+            )
+
+            displayColumn WORKED_HOURS (
+                sequence: 7
+            )
+
+            sort (
+                column: TRANSACTION_DAY_DATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            controlBreak (
+                column: EMP_NO
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P5_DEPT (
+        type: selectList
+        label {
+            label: Departments
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @department
+        }
+        layout {
+            sequence: 30
+            region: @inputs
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P5_DEPTARTMENT (
+        type: hidden
+        layout {
+            sequence: 80
+            slot: body
+        }
+    )
+
+    pageItem P5_EMPLOYEES_MULTI (
+        type: selectMany
+        label {
+            label: Employees
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+            maxValuesInList: 20
+        }
+        lov {
+            type: sharedComponent
+            lov: @employee
+        }
+        layout {
+            sequence: 20
+            region: @inputs
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P5_EMP_COUNT (
+        type: textField
+        label {
+            label: Emp Count
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @timesheet-test
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P5_EMP_IDS (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: body
+        }
+    )
+
+    pageItem P5_LOCATION (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: body
+        }
+    )
+
+    pageItem P5_LOCATIONS (
+        type: selectList
+        label {
+            label: Locations
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+        }
+        layout {
+            sequence: 40
+            region: @inputs
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P5_MONTHS (
+        type: popupLov
+        label {
+            label: Months
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-months
+        }
+        layout {
+            sequence: 60
+            region: @inputs
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: TO_CHAR(ADD_MONTHS(SYSDATE, -1), 'MM')
+        }
+    )
+
+    pageItem P5_PROJECT (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: body
+        }
+    )
+
+    pageItem P5_PROJECTS (
+        type: selectList
+        label {
+            label: Projects
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @project
+        }
+        layout {
+            sequence: 50
+            region: @inputs
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P5_YEARS (
+        type: popupLov
+        label {
+            label: Years
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-years
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @inputs
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: TO_CHAR(SYSDATE, 'YYYY')
+        }
+    )
+
+    button clear (
+        buttonName: clear
+        label: clear
+        layout {
+            sequence: 90
+            region: @inputs
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: [
+                #DEFAULT#
+                t-Button--noLeft
+            ]
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    :P5_EMP_IDS := null;
+                    :P5_MONTHS := null;
+                    :P5_YEARS := null;
+                    :P5_DEPTARTMENT := null;
+                    :P5_LOCATION := null;
+                    :P5_PROJECT := null;
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        triggerAction native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @timesheet-test
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+        triggerAction native-refresh_1 (
+            action: refresh
+            affectedElements {
+                selectionType: items
+                items: [
+                    P5_LOCATION
+                    P5_PROJECT
+                    P5_DEPTARTMENT
+                    P5_EMP_IDS
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    button print-time-sheet_1 (
+        buttonName: Print_Time_Sheet
+        label: Print Time Sheet
+        layout {
+            sequence: 20
+            region: @timesheet-test
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: null;
+                itemsToSubmit: [
+                    P5_MONTHS
+                    P5_YEARS
+                    P5_EMP_IDS
+                    P5_LOCATION
+                    P5_PROJECT
+                    P5_DEPTARTMENT
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        triggerAction native-show (
+            action: plugin/ucApexOfficePrintAopDa
+            settings {
+                templateType: filenameWithPathRelativeToAopServer
+                templateSource3: C:\aop_24_2\reports\Time_Sheet_TMS_test.xlsx
+                dataType: plSqlFunctionReturningJson
+                dataSource2: RETURN TIME_SHEET_REPORT_PKG.GET_TIME_SHEET_JSON_REPORT(P_EMPLOYEE_IDS => :P5_EMP_IDS, P_YEAR => :P5_YEARS, P_MONTH => :P5_MONTHS, P_DEPARTMENT => :P5_DEPTARTMENT, P_LOCATION => :P5_LOCATION, P_PROJECT => :P5_PROJECT);
+                outputType: pdfPdf
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 80
+            region: @inputs
+            slot: regionBody
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: [
+                #DEFAULT#
+                t-Button--noRight
+            ]
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    validation check-inputs (
+        name: CHECK_INPUTS
+        execution {
+            sequence: 10
+        }
+        validation {
+            plsqlExpression:
+                ```plsql
+                :P5_DEPT IS NOT NULL
+                OR :P5_LOCATIONS IS NOT NULL
+                OR :P5_PROJECTS IS NOT NULL
+                OR :P5_EMPLOYEES_MULTI IS NOT NULL
+                ```
+        }
+        error {
+            errorMessage: Please choose at least one of the filters!
+        }
+        serverSideCondition {
+            whenButtonPressed: @submit
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process get-employees-count (
+        name: get employees count
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_count NUMBER;
+                BEGIN
+                    SELECT COUNT(DISTINCT t.EMP_NO)
+                    INTO l_count
+                    FROM TIME_SHEET_CACHE t
+                    LEFT JOIN EMPLOYEE EMP ON EMP.EMPLOYEE_NUMBER = T.EMP_NO
+                    LEFT JOIN DEPARTMENT D
+                        ON UPPER(D.NAME) = UPPER(T.DEPARTMENT)
+                    LEFT JOIN LOCATION LO
+                        ON UPPER(LO.NAME) = UPPER(T.LOCATION)
+                    LEFT JOIN PROJECT PR
+                        ON UPPER(PR.NAME) = UPPER(T.PROJECT)
+                    WHERE t.MONTH = :P5_MONTHS
+                      AND t.YEAR = :P5_YEARS
+                      AND (
+                            (
+                                :P5_EMP_IDS IS NULL
+                                OR t.EMP_NO IN (
+                                    SELECT E.EMPLOYEE_NUMBER
+                                    FROM EMPLOYEE E
+                                    WHERE E.ID IN (
+                                        SELECT TO_NUMBER(COLUMN_VALUE)
+                                        FROM TABLE(
+                                            APEX_STRING.SPLIT(:P5_EMP_IDS, ':')
+                                        )
+                                    )
+                                )
+                            )
+                            AND (
+                                :P5_DEPTARTMENT IS NULL
+                                OR D.ID = :P5_DEPTARTMENT
+                            )
+                            AND (
+                                :P5_LOCATION IS NULL
+                                OR LO.ID = :P5_LOCATION
+                            )
+                            AND (
+                                :P5_PROJECT IS NULL
+                                OR PR.ID = :P5_PROJECT
+                            )
+                          )
+                          AND 
+                          EMP.IS_ACTIVE = 1;
+                
+                    :P5_EMP_COUNT := l_count;
+                END;
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 75234422113213901
+        }
+        serverSideCondition {
+            whenButtonPressed: @submit
+        }
+    )
+
+    process new (
+        name: set_emp_ids
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                :P5_EMP_IDS := :P5_EMPLOYEES_MULTI;
+                
+                :P5_PROJECT := :P5_PROJECTS;
+                
+                :P5_DEPTARTMENT := :P5_DEPT;
+                
+                :P5_LOCATION := :P5_LOCATIONS;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 70482175542012617
+        }
+        serverSideCondition {
+            whenButtonPressed: @submit
+        }
+    )
+
+    process new_1 (
+        name: insert_in_temp_table
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_count      NUMBER;
+                    l_start_date DATE;
+                    l_rows       TIME_SHEET_ROW_TABLE;
+                BEGIN
+                
+                    /* Check if data already exists */
+                    SELECT COUNT(*)
+                INTO l_count
+                FROM TIME_SHEET_CACHE C
+                WHERE C.MONTH = :P5_MONTHS
+                  AND C.YEAR  = :P5_YEARS
+                  AND C.EMP_NO IN (
+                      SELECT E.EMPLOYEE_NUMBER
+                      FROM EMPLOYEE E
+                      WHERE
+                      (
+                                :P5_EMP_IDS IS NULL
+                                AND :P5_DEPTARTMENT IS NULL
+                                AND :P5_LOCATION IS NULL
+                                AND :P5_PROJECT IS NULL
+                            )
+                            OR
+                            (
+                                
+                                :P5_EMP_IDS IS NOT NULL
+                                AND E.ID IN (
+                                    SELECT TO_NUMBER(COLUMN_VALUE)
+                                    FROM TABLE(APEX_STRING.SPLIT(:P5_EMP_IDS, ':'))
+                                )
+                            )
+                         OR (
+                                :P5_DEPTARTMENT IS NOT NULL
+                                AND E.DEPARTMENT_ID = :P5_DEPTARTMENT
+                            )
+                         OR (
+                                :P5_LOCATION IS NOT NULL
+                                AND E.LOCATION_ID = :P5_LOCATION
+                            )
+                         OR (
+                                :P5_PROJECT IS NOT NULL
+                                AND E.PROJECT_ID = :P5_PROJECT
+                            )
+                  );
+                
+                    l_start_date := TO_DATE(
+                        :P5_YEARS || '-' || :P5_MONTHS || '-01',
+                        'YYYY-MM-DD'
+                    );
+                
+                    IF SYSDATE > l_start_date + 140 THEN 
+                        NULL;
+                    ELSE
+                
+                        IF l_count > 0 THEN 
+                            DELETE FROM TIME_SHEET_CACHE 
+                            WHERE MONTH = :P5_MONTHS
+                              AND YEAR = :P5_YEARS
+                              AND EMP_NO IN (
+                                  SELECT E.EMPLOYEE_NUMBER FROM EMPLOYEE E
+                                  WHERE
+                                  (
+                                :P5_EMP_IDS IS NULL
+                                AND :P5_DEPTARTMENT IS NULL
+                                AND :P5_LOCATION IS NULL
+                                AND :P5_PROJECT IS NULL
+                            )
+                            OR
+                                (
+                                    :P5_EMP_IDS IS NOT NULL
+                                    AND E.ID IN (
+                                        SELECT TO_NUMBER(COLUMN_VALUE)
+                                        FROM TABLE(APEX_STRING.SPLIT(:P5_EMP_IDS, ':'))
+                                    )
+                                )
+                             OR (
+                                    :P5_DEPTARTMENT IS NOT NULL
+                                    AND E.DEPARTMENT_ID = :P5_DEPTARTMENT
+                                )
+                             OR (
+                                    :P5_LOCATION IS NOT NULL
+                                    AND E.LOCATION_ID = :P5_LOCATION
+                                )
+                             OR (
+                                    :P5_PROJECT IS NOT NULL
+                                    AND E.PROJECT_ID = :P5_PROJECT
+                                )
+                      );
+                        END IF;
+                
+                        /* Use the package's typed APEX result to keep the cursor shape aligned. */
+                        l_rows := TIME_SHEET_REPORT_PKG.GET_TIME_SHEET_REPORT_APEX(
+                            P_EMPLOYEE_IDS => :P5_EMP_IDS,
+                            P_YEAR         => :P5_YEARS,
+                            P_MONTH        => :P5_MONTHS,
+                            P_DEPARTMENT  => :P5_DEPTARTMENT,
+                            P_LOCATION      => :P5_LOCATION,
+                            P_PROJECT      => :P5_PROJECT
+                        );
+                
+                        IF l_rows.COUNT > 0 THEN
+                            FORALL i IN 1..l_rows.COUNT
+                                INSERT INTO TIME_SHEET_CACHE (
+                                    EMP_NO,
+                                    EMP_NAME,
+                                    DEPARTMENT,
+                                    LOCATION,
+                                    PROJECT,
+                                    MONTH,
+                                    YEAR,
+                                    TRANSACTION_DAY_DATE,
+                                    TIME_IN,
+                                    TIME_OUT,
+                                    WORKED_HOURS,
+                                    OVERTIME_BEFORE_SIX,
+                                    OVERTIME_AFTER_SIX,
+                                    R_P,
+                                    NATIONALITY,
+                                    RELIGION,
+                                    DAY_STATUS,
+                                    PERMISSION_STATUS,
+                                    PERMISSION_DESCRIPTION,
+                                    PERMISSION_TYPE_ID,
+                                    ROTATION_TYPE,
+                                    ROTATION_DAY,
+                                    OVERTIME_FROM,
+                                    SHIFT_FROM_TIME,
+                                    SHIFT_DURATION
+                                )
+                                VALUES (
+                                    l_rows(i).employee_number,
+                                    l_rows(i).name,
+                                    NVL(l_rows(i).department_name,'N/A'),
+                                    NVL(l_rows(i).location_name,'N/A'),
+                                    NVL(l_rows(i).project_name, 'N/A'),
+                                    :P5_MONTHS,
+                                    :P5_YEARS,
+                                    l_rows(i).transaction_date,
+                                    l_rows(i).in_time,
+                                    l_rows(i).out_time,
+                                    l_rows(i).worked_hours,
+                                    l_rows(i).over_time,
+                                    l_rows(i).over_time_after_6,
+                                    l_rows(i).rp,
+                                    l_rows(i).nationality,
+                                    l_rows(i).religion,
+                                    l_rows(i).day_status,
+                                    l_rows(i).permission_status,
+                                    l_rows(i).PERMISSION_DESCRIPTION,
+                                    l_rows(i).PERMISSION_TYPE_ID,
+                                    NVL(TO_CHAR(l_rows(i).rotation_days),'N/A'),
+                                    NVL(TO_CHAR(l_rows(i).rotation_day), 'N/A'),
+                                    l_rows(i).OVERTIME_FROM,
+                                    l_rows(i).SHIFT_FROM_TIME,
+                                    l_rows(i).SHIFT_DURATION
+                                );
+                        END IF;
+                
+                        COMMIT;
+                    END IF;
+                
+                END;
+                
+                
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 70482774205012623
+        }
+        serverSideCondition {
+            whenButtonPressed: @submit
+        }
+    )
+
+)

@@ -1,0 +1,583 @@
+page 10 (
+    name: Devices
+    alias: DEVICES
+    title: Devices
+    pageGroup: @attendance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Devices
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region devices (
+        name: Devices and Upload Queue
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select d.ID, d.NAME, d.IP, d.PORT, d.TYPE, d.LOCATION_ID, d.LAST_DOWNLOADED,
+                       d.LAST_TRANSACTION, d.IS_PENDING_REQUEST, d.HAS_LAST_REQUEST_FAILED,
+                       l.NAME AS LOCATION_NAME,
+                       q.STATUS AS COMMAND_STATUS,
+                       apex_page.get_url(p_page => 1125, p_items => 'P1125_DEVICE_ID',
+                                         p_values => to_char(d.ID)) AS EDIT_URL,
+                       apex_page.get_url(p_page => 1126, p_items => 'P1126_DEVICE_ID',
+                                         p_values => to_char(d.ID)) AS View_URL ,
+                       'Delete' as DELETE_BUTTON
+                  from DEVICE d
+                left join LOCATION l
+                on l.ID = d.LOCATION_ID
+                  left join (
+                      select json_value(PAYLOAD_JSON, '$.device_id' returning number) AS DEVICE_ID,
+                             max(STATUS) keep (dense_rank last order by ID) AS STATUS
+                        from COMMAND_QUEUE
+                       group by json_value(PAYLOAD_JSON, '$.device_id' returning number)
+                  ) q on q.DEVICE_ID = d.ID
+                 where d.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':')))
+                 order by d.NAME
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: device_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('Devices') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No devices are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47955759277343096
+        }
+
+        column COMMAND_STATUS (
+            type: hidden
+            heading {
+                heading: Queue Status
+            }
+            layout {
+                sequence: 11
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 102
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+                alignment: center
+            }
+            layout {
+                sequence: 12
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column HAS_LAST_REQUEST_FAILED (
+            type: hidden
+            heading {
+                heading: Last Request Failed
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 22
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column IP (
+            type: hidden
+            heading {
+                heading: IP Address
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column IS_PENDING_REQUEST (
+            type: hidden
+            heading {
+                heading: Pending Request
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LAST_DOWNLOADED (
+            type: plainText
+            heading {
+                heading: Last Uploaded
+            }
+            layout {
+                sequence: 72
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column LAST_TRANSACTION (
+            type: hidden
+            heading {
+                heading: Last Transaction
+            }
+            layout {
+                sequence: 82
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column LOCATION_ID (
+            type: hidden
+            heading {
+                heading: Location Id
+            }
+            layout {
+                sequence: 52
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: Location Name
+            }
+            layout {
+                sequence: 62
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Device
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PORT (
+            type: hidden
+            heading {
+                heading: Port
+            }
+            layout {
+                sequence: 32
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TYPE (
+            type: plainTextBasedOnLov
+            heading {
+                heading: Type
+            }
+            lov {
+                lov: @devices-types2
+            }
+            layout {
+                sequence: 42
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column VIEW_URL (
+            type: plainText
+            heading {
+                heading: View
+                alignment: center
+            }
+            layout {
+                sequence: 92
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#VIEW_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 7
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 5
+            )
+
+            displayColumn LAST_DOWNLOADED (
+                sequence: 4
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 3
+            )
+
+            displayColumn NAME (
+                sequence: 1
+            )
+
+            displayColumn TYPE (
+                sequence: 2
+            )
+
+            displayColumn VIEW_URL (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+    button create-device (
+        buttonName: CREATE_DEVICE
+        label: Create Device
+        layout {
+            sequence: 10
+            region: @devices
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1125
+                clearCache: 1125
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_DEVICE",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("device_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-devices-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @devices
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @devices
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process delete-device (
+        name: DELETE_DEVICE
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'DEVICE';
+                BEGIN
+                    DEVICE_API_PKG.delete_device(
+                        p_device_id => apex_application.g_x01,
+                        p_status         => l_status,
+                        p_message        => l_message
+                    );
+                
+                    AUDIT_PKG.record_event('REFERENCE_DEVICE_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                
+                
+                    apex_json.open_object;
+                    apex_json.write('msg', 'ok') ;
+                    apex_json.close_object;
+                END;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 71548888625537239
+        }
+    )
+
+)

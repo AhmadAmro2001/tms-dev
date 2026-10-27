@@ -1,0 +1,116 @@
+reportQuery time-sheet (
+    name: time_sheet
+    output {
+        fileName: time_sheet
+    }
+
+    sourceQuery (
+        name: time_sheet
+        sequence: 1
+        source {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    t.ID,
+                    t.EMP_NO AS EMP_NO,
+                    t.EMP_NAME,
+                    t.DEPARTMENT,
+                    t.LOCATION,
+                    t.PROJECT,
+                    t.MONTH,
+                    t.YEAR,
+                
+                    TO_CHAR(
+                        t.TRANSACTION_DAY_DATE,
+                        'DY',
+                        'NLS_DATE_LANGUAGE=ENGLISH'
+                    ) AS DAY_NAME,
+                
+                    t.TRANSACTION_DAY_DATE,
+                    t.TIME_IN,
+                    t.TIME_OUT,
+                    t.WORKED_HOURS,
+                    t.OVERTIME_BEFORE_SIX,
+                    t.OVERTIME_AFTER_SIX,
+                    t.R_P,
+                    t.NATIONALITY,
+                    t.RELIGION,
+                    t.DAY_STATUS,
+                    t.PERMISSION_STATUS,
+                    t.ROTATION_TYPE,
+                    t.ROTATION_DAY
+                
+                FROM TIME_SHEET_CACHE t
+                
+                LEFT JOIN DEPARTMENT D
+                    ON UPPER(D.NAME) = UPPER(t.DEPARTMENT)
+                
+                LEFT JOIN LOCATION LO
+                    ON UPPER(LO.NAME) = UPPER(t.LOCATION)
+                
+                LEFT JOIN PROJECT PR
+                    ON UPPER(PR.NAME) = UPPER(t.PROJECT)
+                
+                WHERE t.MONTH = :P5_MONTHS
+                  AND t.YEAR = :P5_YEARS
+                
+                  AND (
+                        /* No filters */
+                        (
+                            :P5_EMP_IDS IS NULL
+                            AND :P5_DEPTARTMENT IS NULL
+                            AND :P5_LOCATION IS NULL
+                            AND :P5_PROJECT IS NULL
+                        )
+                
+                        /* Employee filter */
+                        OR
+                        (
+                            :P5_EMP_IDS IS NOT NULL
+                            AND t.EMP_NO IN (
+                                SELECT E.EMPLOYEE_NUMBER
+                                FROM EMPLOYEE E
+                                WHERE E.ID IN (
+                                    SELECT TO_NUMBER(COLUMN_VALUE)
+                                    FROM TABLE(
+                                        APEX_STRING.SPLIT(
+                                            :P5_EMP_IDS,
+                                            ':'
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                
+                        /* Department filter */
+                        OR
+                        (
+                            :P5_DEPTARTMENT IS NOT NULL
+                            AND D.ID = :P5_DEPTARTMENT
+                        )
+                
+                        /* Location filter */
+                        OR
+                        (
+                            :P5_LOCATION IS NOT NULL
+                            AND LO.ID = :P5_LOCATION
+                        )
+                
+                        /* Project filter */
+                        OR
+                        (
+                            :P5_PROJECT IS NOT NULL
+                            AND PR.ID = :P5_PROJECT
+                        )
+                      )
+                
+                ORDER BY
+                    t.EMP_NO,
+                    t.TRANSACTION_DAY_DATE,
+                    t.ID;
+                ```
+        }
+    )
+
+)

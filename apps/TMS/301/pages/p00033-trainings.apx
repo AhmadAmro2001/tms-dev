@@ -1,0 +1,837 @@
+page 33 (
+    name: Trainings
+    alias: TRAININGS
+    title: Trainings
+    pageGroup: @employees
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Trainings
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region filter-region (
+        name: Filter Region
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region trainings (
+        name: Trainings_data
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select t.ID, e.EMPLOYEE_NUMBER, e.NAME AS EMPLOYEE_NAME,t.IS_INSERTED_BY_APEX, l.name as location_name, t.FROM_DATE, t.TO_DATE, t.DESCRIPTION, apex_page.get_url(p_page => 1142, p_items => 'P1142_ENTITY_ID', p_values => to_char(t.ID)) AS EDIT_URL,
+                apex_page.get_url(p_page => 1150, p_items => 'P1150_ENTITY_ID', p_values => to_char(t.ID)) AS VIEW_URL  ,
+                       'Delete' as DELETE_BUTTON
+                from TRAINING t 
+                join EMPLOYEE e on e.ID=t.EMPLOYEE_ID 
+                 join location l on l.id = e.location_id
+                where e.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':'))) 
+                 AND :P33_SUBMIT_FLAG = 'Y'
+                 AND (
+                    :P33_EMPLOYEE_NUMBER IS NULL
+                    OR e.EMPLOYEE_NUMBER = :P33_EMPLOYEE_NUMBER
+                )
+                 AND (
+                    :P33_LOCATIONS IS NULL
+                    OR e.LOCATION_ID = :P33_LOCATIONS
+                )
+                 AND (
+                    :P33_FROM IS NULL
+                    OR t.FROM_DATE >= to_date(:P33_FROM, 'dd-mm-yyyy')
+                 )
+                  AND (
+                    :P33_TO IS NULL
+                    OR t.TO_DATE <= to_date(:P33_TO, 'dd-mm-yyyy')
+                 )
+                order by t.FROM_DATE desc
+                ```
+            pageItemsToSubmit: [
+                P33_SUBMIT_FLAG
+                P33_EMPLOYEE_NUMBER
+                P33_LOCATIONS
+                P33_FROM
+                P33_TO
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: training_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTrainings') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47968309550343143
+        }
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: Delete
+            }
+            layout {
+                sequence: 87
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: Description
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 7
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="Edit">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 27
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FROM_DATE (
+            type: plainText
+            heading {
+                heading: "From "
+            }
+            layout {
+                sequence: 37
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 17
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column IS_INSERTED_BY_APEX (
+            type: plainTextBasedOnLov
+            heading {
+                heading: Source
+            }
+            lov {
+                lov: @source-types
+            }
+            layout {
+                sequence: 57
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 67
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TO_DATE (
+            type: plainText
+            heading {
+                heading: "To "
+            }
+            layout {
+                sequence: 47
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column VIEW_URL (
+            type: plainText
+            heading {
+                heading: View
+            }
+            layout {
+                sequence: 77
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#VIEW_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 9
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 8
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn FROM_DATE (
+                sequence: 3
+            )
+
+            displayColumn IS_INSERTED_BY_APEX (
+                sequence: 5
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 6
+            )
+
+            displayColumn TO_DATE (
+                sequence: 4
+            )
+
+            displayColumn VIEW_URL (
+                sequence: 7
+            )
+
+        )
+
+    )
+
+    pageItem P33_DEPARTMENTS (
+        type: selectList
+        label {
+            label: Departments
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @department
+            nullDisplayValue: --All Departments--
+        }
+        layout {
+            sequence: 30
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P33_EMPLOYEE_NUMBER (
+        type: selectOne
+        label {
+            label: Employee Number
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-emp-number
+        }
+        layout {
+            sequence: 10
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P33_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-YYYY
+            width: 30
+        }
+    )
+
+    pageItem P33_LOCATIONS (
+        type: selectList
+        label {
+            label: Locations
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+            nullDisplayValue: --All Locations--
+        }
+        layout {
+            sequence: 20
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P33_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: body
+        }
+        default {
+            type: static
+            staticValue: 'N'
+        }
+    )
+
+    pageItem P33_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-YYYY
+            width: 30
+        }
+    )
+
+    button create-trainings (
+        buttonName: CREATE_TRAININGS
+        label: Create Trainings
+        layout {
+            sequence: 10
+            region: @trainings
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1142
+                clearCache: 1142
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_WRITE_SQL('WriteTrainings') = 1
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 70
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--noLeft
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 60
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--primary
+                t-Button--stretch
+                t-Button--noLeft
+                t-Button--noRight
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @submit
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @trainings
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P33_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: New
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @trainings
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P33_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P33_EMPLOYEE_NUMBER
+                    P33_LOCATIONS
+                    P33_FROM
+                    P33_TO
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    dynamicAction new_2 (
+        name: New
+        execution {
+            sequence: 40
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_TRAINING",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("training_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-trainings-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @trainings
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @trainings
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process delete-training (
+        name: DELETE_TRAINING
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'TRAINING';
+                BEGIN
+                    DELETE_PKG.delete_training(
+                        p_id => apex_application.g_x01
+                    );
+                
+                    AUDIT_PKG.record_event('REFERENCE_TRAINING_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                
+                
+                    apex_json.open_object;
+                    apex_json.write('msg', 'ok') ;
+                    apex_json.close_object;
+                END;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 78266473526676815
+        }
+    )
+
+)

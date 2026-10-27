@@ -1,0 +1,118 @@
+plugin ucApexOfficePrintAopConvertDa (
+    name: UC - APEX Office Print (AOP) - Convert DA
+    staticId: BE.APEXRND.AOP_CONVERT_DA
+    type: dynamicAction
+    component {
+        standardAttributes: [
+            forItem
+            stopExecutionOnErrorAttr
+            waitForResultAttr
+            initJavascriptCodeAttr
+        ]
+    }
+    callbacks {
+        apiInterface: function
+        renderProcedureName: aop_convert_pkg.f_render_aop
+        ajaxProcedureName: aop_convert_pkg.f_ajax_aop
+    }
+    advanced {
+        category: execute
+        substituteAttributeValues: true
+    }
+    css {
+        fileUrls: [
+            #PLUGIN_FILES#css/spinkit.min.css
+            #PLUGIN_FILES#css/spinkit-aop.min.css
+            #PLUGIN_FILES#css/aop.min.css
+        ]
+    }
+    javaScript {
+        fileUrls: [
+            #PLUGIN_FILES#js/es6-promise.min.js
+            #PLUGIN_FILES#js/aop_da.min.js
+        ]
+    }
+    information {
+        version: 25.1.2
+        aboutUrl: https://www.apexofficeprint.com
+        helpText:
+            ```
+            APEX Office Print (AOP) is created by United Codes to facilitate exporting data and printing documents in Oracle Application Express (APEX) based on an Office document (Word, Excel, PowerPoint) or HTML, Markdown, CSV, or Text. This plugin can only be used to print to AOP and is copyrighted by APEX R&D and United Codes. If you have any questions please contact support@apexofficeprint.com.
+            We hope you enjoy AOP!
+            ```
+    }
+
+    standardAttributeConfig (
+        name: hasInitJavaScriptCodeAttribute
+        help {
+            helpText:
+                ```
+                <strong>Options</strong><br>
+                <strong>AOP.gAOPOptions.showNotification - Show Notification if something went wrong</strong><br>
+                Values: true (default) / false<br><br>
+                <strong>AOP.gAOPOptions.notificatonMessage - Overrides Server-side Notification Message</strong><br>
+                <strong>AOP.gAOPOptions.processingIndicator - Waiting Indicators</strong><br>
+                <code>
+                -- Only Spinner
+                
+                /* APEX Spinner */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.spinner,
+                  spinnerIcon: 'APEX'
+                };
+                
+                /* Spinkit Circle Spinner */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.spinner,
+                  spinnerIcon: 'circle'
+                };
+                
+                -- Spinner with Overlay
+                
+                /* APEX Spinner with Overlay */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.overlay,
+                  spinnerIcon: 'APEX'
+                };
+                
+                /* Spinkit Circle Spinner with Overlay */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.overlay,
+                  spinnerIcon: 'circle'
+                };
+                
+                -- Spinner in button
+                
+                /* APEX Spinner Added to a Button */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.button,
+                  button: 'DOCX',
+                  spinnerIcon: 'APEX'
+                };
+                
+                /* Spinkit Circle Spinner Added to a Button  */
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.button,
+                  button: 'DOCX',
+                  spinnerIcon: 'circle'
+                };
+                </code>
+                Available waiting spinners:<br>
+                apex (default), flow, plance, circle-fade, fold, bounce, wave, wander, pulse, chase, circle, grid
+                <br><br>
+                ```
+        }
+        examples {
+            examples:
+                ```
+                AOP.gAOPOptions.processingIndicator = {
+                  type: AOP.gAOPOptions.processingType.spinner,
+                  spinnerIcon: 'bounce'
+                };<br>
+                AOP.gAOPOptions.showNotification = false;<br>
+                AOP.gAOPOptions.notificatonMessage = 'An AOP error occurred';
+                ```
+        }
+    )
+
+)

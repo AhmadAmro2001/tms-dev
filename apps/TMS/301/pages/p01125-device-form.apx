@@ -1,0 +1,544 @@
+page 1125 (
+    name: Device Form
+    alias: DEVICE-FORM
+    title: Device Form
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region form-body (
+        name: Device Form
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P1125_COMMUNICATION_KEY (
+        type: textField
+        label {
+            label: Communication Key
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_DEVICE_ID (
+        type: hidden
+        layout {
+            sequence: 1
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1125_IDEMPOTENCY_KEY (
+        type: hidden
+        layout {
+            sequence: 2
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P1125_IP (
+        type: textField
+        label {
+            label: IPv4 Address
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_LAST_DOWNLOADED (
+        type: hidden
+        layout {
+            sequence: 70
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_LAST_TRANSACTION (
+        type: hidden
+        layout {
+            sequence: 80
+            region: @form-body
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_LOCATION_ID (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+        }
+        layout {
+            sequence: 60
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_NAME (
+        type: textField
+        label {
+            label: Device Name
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_PORT (
+        type: textField
+        label {
+            label: Port
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1125_TYPE (
+        type: popupLov
+        label {
+            label: Device Type (0/1/2)
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @devices-types2
+        }
+        layout {
+            sequence: 50
+            region: @form-body
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+        config {
+            buildOption: @commented-out
+        }
+
+        triggerAction cancel-dialog (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button correct-timestamps (
+        buttonName: CORRECT_TIMESTAMPS
+        label: Correct Timestamps
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete Device
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Delete this in-scope device.
+            style: danger
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button request-upload (
+        buttonName: REQUEST_UPLOAD
+        label: Queue Upload
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Queue an upload request. A queued command does not confirm physical device execution.
+            style: warning
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Save
+        layout {
+            sequence: 40
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 60
+        }
+        advanced {
+            executionMappingIdentifier: 48011849096343391
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: SAVE,REQUEST_UPLOAD,CORRECT_TIMESTAMPS,DELETE
+        }
+    )
+
+    process correct-device-timestamps (
+        name: Correct Activity Timestamps Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.correct_activity_timestamps(:P1125_DEVICE_ID,
+                        :P1125_LAST_DOWNLOADED, :P1125_LAST_TRANSACTION, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 48011645064343391
+        }
+        serverSideCondition {
+            whenButtonPressed: @correct-timestamps
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process delete-device (
+        name: Delete Device Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.delete_device(:P1125_DEVICE_ID, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 50
+        }
+        advanced {
+            executionMappingIdentifier: 48011741681343391
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process initialize-device-form (
+        name: Initialize Device Form
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P1125_IDEMPOTENCY_KEY := nvl(:P1125_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                    IF NOT AUTH_PKG.has_role('1') OR NOT AUTH_PKG.can_write('Devices') THEN
+                        raise_application_error(-20140, 'Device administration requires role 1 and Devices write access');
+                    END IF;
+                    IF NOT AUTH_PKG.can_read('Devices') THEN
+                        raise_application_error(-20140, 'Device read access is not permitted');
+                    END IF;
+                    IF :P1125_DEVICE_ID IS NOT NULL THEN
+                        SELECT NAME, IP, PORT, COMMUNICATION_KEY, TYPE, LOCATION_ID,
+                               LAST_DOWNLOADED, LAST_TRANSACTION
+                          INTO :P1125_NAME, :P1125_IP, :P1125_PORT, :P1125_COMMUNICATION_KEY,
+                               :P1125_TYPE, :P1125_LOCATION_ID, :P1125_LAST_DOWNLOADED,
+                               :P1125_LAST_TRANSACTION
+                          FROM DEVICE
+                         WHERE ID = :P1125_DEVICE_ID
+                           AND AUTH_PKG.can_access_location_sql(LOCATION_ID) = 1;
+                    END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 48011337179343391
+        }
+    )
+
+    process queue-device-upload (
+        name: Queue Upload Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_queue_id number; l_status varchar2(30); l_message varchar2(4000); l_payload clob;
+                BEGIN
+                    SELECT json_object('requested_from' value 'APEX' returning clob) INTO l_payload FROM dual;
+                    DEVICE_API_PKG.enqueue_command(:P1125_DEVICE_ID, 'UPLOAD', l_payload,
+                        :P1125_IDEMPOTENCY_KEY, l_queue_id, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                END;
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 48011513492343391
+        }
+        serverSideCondition {
+            whenButtonPressed: @request-upload
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+    process save-device (
+        name: Save Device Through Package
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000);
+                BEGIN
+                    DEVICE_API_PKG.upsert_device(:P1125_DEVICE_ID, :P1125_NAME, :P1125_IP,
+                        :P1125_PORT, :P1125_COMMUNICATION_KEY, :P1125_TYPE, :P1125_LOCATION_ID,
+                        l_id, l_status, l_message);
+                    IF l_status = 'REJECTED' THEN raise_application_error(-20001, l_message); END IF;
+                    :P1125_DEVICE_ID := l_id;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 48011438413343391
+        }
+        serverSideCondition {
+            whenButtonPressed: @save
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') AND AUTH_PKG.CAN_WRITE('Devices')
+        }
+    )
+
+)

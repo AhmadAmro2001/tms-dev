@@ -1,0 +1,2115 @@
+customAttribute attribute_01 (
+    apexlangName: aopUrl
+    attribute: 1
+    name: AOP URL
+    scope: app
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 1000
+    }
+    default {
+        value: https://api.apexofficeprint.com/
+    }
+    help {
+        helpText:
+            ```
+            URL to APEX Office Print server. <br/>
+            When installed on the same server as the database using the default port you can use http://localhost:8010/ <br/>
+            To use AOP as a service, you can use http(s)://api.apexofficeprint.com/ <br/>
+            When using HTTPS, make sure to add the certificate to the wallet of your database. Alternatively you can setup a proxy rule in your webserver to do the HTTPS handshaking so the AOP plugin can call a local url. Instructions how to setup both options can be found in the documentation.<br/>
+            When running AOP on the Oracle Cloud you are obliged to use HTTPS, so the url should be https://api.apexofficeprint.com/ or https://www.cloudofficeprint.com/aop/<br/>
+            You can also dynamically specify a url by an Application Item e.g. &AI_AOP_URL.
+            ```
+    }
+)
+
+customAttribute attribute_01 (
+    apexlangName: dataSource3
+    attribute: 1
+    name: Data Source
+    type: textarea
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 23
+    }
+    dependingOn {
+        attribute: @attribute_05/component
+        conditionType: inList
+        list: [
+            URL
+            XML
+            JSON
+            JSON_FILES
+        ]
+    }
+    help {
+        helpText:
+            ```
+            <p>Specify the XML or JSON.
+            </p>
+            <p>For type URL:<br/>
+            Create (in for example ORDS) a new REST web service with a GET, source type "Query" and format "JSON".<br/>
+            Put the url in this text box, e.g. https://www.apexofficeprint.com/ords/aop/get_data/1
+            <br/><br/>
+            Here's an example of a query which contains a parameter too:
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <pre>
+            select 
+              'file1' as filename,  
+              cursor( 
+                select
+                  c.cust_first_name, 
+                  c.cust_last_name, 
+                  c.cust_city, 
+                  cursor(select o.order_total, 'Order ' || rownum as order_name,
+                            cursor(select p.product_name, i.quantity, i.unit_price, APEX_WEB_SERVICE.BLOB2CLOBBASE64(p.product_image) as image 
+                                     from aop_sample_order_items i, aop_sample_product_info p 
+                                    where o.order_id = i.order_id 
+                                      and i.product_id = p.product_id 
+                                  ) product                 
+                           from aop_sample_orders o 
+                          where c.customer_id = o.customer_id 
+                        ) orders 
+                from aop_sample_customers c 
+                where customer_id = :id 
+              ) as data 
+            from dual 
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_02 (
+    apexlangName: apiKey
+    attribute: 2
+    name: API key
+    scope: app
+    validation {
+        maxLength: 50
+    }
+    appearance {
+        sequence: 2000
+    }
+    builder {
+        displayWidth: 50
+    }
+    help {
+        helpText: Enter your API key found on your account when you login at https://www.apexofficeprint.com.
+    }
+)
+
+customAttribute attribute_02 (
+    apexlangName: special
+    attribute: 2
+    name: Special
+    type: checkboxes
+    appearance {
+        sequence: 27
+    }
+    builder {
+        showInWizard: false
+    }
+    dependingOn {
+        attribute: @attribute_05/component
+        conditionType: inList
+        list: [
+            SQL
+            PLSQL_SQL
+            IR
+        ]
+    }
+    help {
+        helpText: Specific features of APEX Office Print
+    }
+
+    entry irIgRepeatHeaderOnEveryPage (
+        sequence: 70
+        display: IR/IG: Repeat header on every page
+        return: REPEAT_HEADER
+        help {
+            helpText: When the table spans multiple pages, the header row will be repeated on every page.
+        }
+    )
+
+    entry irIgShowFiltersOnTop (
+        sequence: 30
+        display: IR/IG: Show Filters on top
+        return: FILTERS_ON_TOP
+        help {
+            helpText: When there're filters applied to the Interactive Report, this checkbox will print them above the report.
+        }
+    )
+
+    entry irIgShowHeaderWithFilterExcel (
+        sequence: 50
+        display: IR/IG: Show header with filter (Excel)
+        return: HEADER_WITH_FILTER
+        help {
+            helpText: When exporting the Interactive Report to Excel, show the header with filter option.
+        }
+    )
+
+    entry irIgShowHighlightsOnTop (
+        sequence: 40
+        display: IR/IG: Show Highlights on top
+        return: HIGHLIGHTS_ON_TOP
+        help {
+            helpText: When there're highlights applied to the Interactive Report, this checkbox will print them above the report.
+        }
+    )
+
+    entry irIgUseSavedReportInsteadOfReportIn (
+        sequence: 60
+        display: IR/IG: Use Saved Report instead of Report in Session
+        return: ALWAYS_REPORT_ALIAS
+        help {
+            helpText: When defining the Interactive Report source ir1|my_saved_report, the "my_saved_report" will be used, even when the person is looking at a different report in his session session.
+        }
+    )
+
+    entry obfuscateData (
+        sequence: 80
+        display: Obfuscate data
+        return: OBFUSCATE_DATA
+        help {
+            helpText: Obfuscate data, so it's easy to send examples to others.
+        }
+    )
+
+    entry reportAsLabels (
+        sequence: 20
+        display: Report as Labels
+        return: REPORT_AS_LABELS
+        help {
+            helpText: Check this box in case you want to use the Classic or Interactive Report data source but print them as Labels (using the Mailings feature in Word).
+        }
+    )
+
+    entry treatAllNumbersAsStrings (
+        sequence: 10
+        display: Treat all numbers as strings
+        return: NUMBER_TO_STRING
+        help {
+            helpText:
+                ```
+                <p>
+                There's a limitation in APEX with the cursor() statement in SQL that it doesn't remember which datatype the column is in. So when doing to_char(0.9,'990D00') it will return 0.9 as number instead of as string '0.90'. To resolve this, enable this checkbox and concatenate your number with '!FMT!' e.g. '!FMT!'||to_char(35, '990D00') - !FMT! stands for format.
+                </p>
+                <p>
+                Alternatively if you format your number with the currency sign to_char(35,'FML990D00') Oracle will recognise it as a string and you don't need to use this checkbox.
+                </p>
+                ```
+        }
+    )
+
+)
+
+customAttribute attribute_03 (
+    apexlangName: debug
+    attribute: 3
+    name: Debug
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: No
+    }
+    appearance {
+        sequence: 3000
+    }
+    builder {
+        showInWizard: false
+    }
+    help {
+        helpText: By default debug is turned off.
+    }
+
+    entry aopCloudRemote (
+        sequence: 25
+        display: AOP Cloud (Remote)
+        return: Yes
+        help {
+            helpText:
+                ```
+                Enabling remote debug will capture the JSON and is available in your dashboard at https://www.apexofficeprint.com. So note that with this option your data is sent to us.
+                This makes debugging your JSON easier, checking if it's valid, and contacting us if you need support. This option only works when you use http(s)://api.apexofficeprint.com/in your AOP settings.
+                ```
+        }
+    )
+
+    entry derivedFromApplicationItem (
+        sequence: 30
+        display: Derived from Application Item
+        return: APEX_ITEM
+        help {
+            helpText:
+                ```
+                This option is useful when you want to dynamically set AOP debugging.<br/>
+                The application item needs to be called AOP_DEBUG and can have values: No, Yes (=Remote) or Local.
+                ```
+        }
+    )
+
+    entry local (
+        sequence: 20
+        display: Local
+        return: Local
+        help {
+            helpText:
+                ```
+                Enabling local debug will download the JSON that is sent to the AOP server component. 
+                This makes it easier to debug your JSON, check if it's valid and contact us in case you need support.
+                Note that the output file will not be produced and the server will never be called.
+                ```
+        }
+    )
+
+)
+
+customAttribute attribute_03 (
+    apexlangName: initPlSqlCode
+    attribute: 3
+    name: Init PL/SQL Code
+    type: plsqlCode
+    appearance {
+        sequence: 30
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            You can define global variables of the aop_api_pkg in this area.<br/>
+            </p>
+            For a list of available global variables, see the spec of aop_api_pkg:
+            <pre>
+            -- Global variables 
+            g_output_filename         varchar2(100) := null;
+            g_language                varchar2(2)   := 'en';  -- Language can be: en, fr, nl, de
+            g_debug                   varchar2(10)  := null;  -- set to 'Local' when only the JSON needs to be generated, 'Remote' for remote debug
+            g_output_remove_last_page boolean       := false; -- PDF option to remove the last page; e.g. when the last page is empty
+            
+            -- Interactive Report
+            g_rpt_header_font_name    varchar2(50)  := '';    -- Arial - see https://www.microsoft.com/typography/Fonts/product.aspx?PID=163
+            g_rpt_header_font_size    varchar2(3)   := '';    -- 14
+            g_rpt_header_font_color   varchar2(50)  := '';    -- #071626
+            g_rpt_header_back_color   varchar2(50)  := '';    -- #FAFAFA
+            g_rpt_header_border_width varchar2(50)  := '';    -- 1 ; '0' = no border
+            g_rpt_header_border_color varchar2(50)  := '';    -- #000000
+            g_rpt_data_font_name      varchar2(50)  := '';    -- Arial - see https://www.microsoft.com/typography/Fonts/product.aspx?PID=163
+            g_rpt_data_font_size      varchar2(3)   := '';    -- 14
+            g_rpt_data_font_color     varchar2(50)  := '';    -- #000000
+            g_rpt_data_back_color     varchar2(50)  := '';    -- #FFFFFF
+            g_rpt_data_border_width   varchar2(50)  := '';    -- 1 ; '0' = no border 
+            g_rpt_data_border_color   varchar2(50)  := '';    -- #000000
+            g_rpt_data_alt_row_color  varchar2(50)  := '';    -- #FFFFFF for no alt row color, use same color as g_rpt_data_back_color
+            
+            -- APEX Page Items 
+            g_apex_items              varchar2(4000):= null;  -- colon-separated list of APEX items e.g. P1_X:P1_Y, which can be referenced in a template using {Pxx_ITEM}
+                                                              -- you can only use this global variable in combination with reports (classic, IR, IG, ...).
+                                                              -- When using a SQL Query, you can define the page item in your SQL query, e.g. :P1_ITEM as "P1_ITEM"
+            
+            -- Call a Web Service where AOP will send the file to (POST Request)
+            g_web_service_url         varchar2(500) := null;  -- URL to be called once AOP has created the document. AOP will do a POST request and headers can be specified
+            g_web_service_headers     varchar2(4000):= null;  -- The headers for the POST request e.g. {"file_id": "F123", "access_token": "A456789"}
+            
+            -- Templates
+            g_template_start_delimiter   varchar2(2)   := null;  -- { is the default start delimiter used is a template, but you can set this variable with the following options: {, {{, <, <<
+            g_template_end_delimiter     varchar2(2)   := null;  -- } is the default end delimiter used in a template, but you can set this variable with the following options: }, }}, >, >>
+            g_cache_template             boolean       := false; -- cache the template; an hash is returned in g_template_cache_hash
+            
+            -- Password protected PDF
+            g_output_read_password       varchar2(200) := null; -- protect PDF to read
+            g_output_modify_password     varchar2(200) := null; -- protect PDF to write (modify)
+            g_output_pwd_protection_flag number(4)     := null; -- optional; default is 4. 
+            
+            -- Watermark
+            g_output_watermark           varchar2(4000):= null; -- Watermark in PDF
+            g_output_watermark_color     varchar2(500) := null; -- Watermark option color
+            
+            -- Many more are specified in the package
+            </pre>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <pre>
+            aop_api_pkg.g_output_filename         := 'output';
+            aop_api_pkg.g_output_filename         := v('P1_FILENAME');
+            aop_api_pkg.g_output_remove_last_page := true;
+            aop_api_pkg.g_rpt_header_font_size    := '12';
+            aop_api_pkg.g_prepend_files_sql       := q'[select filename, mime_type, template_blob as file_blob from aop_template where filename like 'PREPEND%' order by filename]';
+            aop_api_pkg.g_append_files_sql        := q'[select filename, mime_type, template_blob as file_blob from aop_template where filename like 'APPEND%' order by filename]';
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_04 (
+    apexlangName: converter
+    attribute: 4
+    name: Converter
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: LibreOffice
+    }
+    appearance {
+        sequence: 4000
+    }
+    builder {
+        showInWizard: false
+    }
+    help {
+        helpText:
+            ```
+            To transform an Office document to PDF, APEX Office Print is using an external converter.
+            By default LibreOffice is used, but you can select another converter on request.
+            ```
+    }
+
+    entry custom (
+        sequence: 20
+        display: Custom
+        return: custom
+        help {
+            helpText: Specify the name of the custom converter defined at the AOP Server.
+        }
+    )
+
+    entry msOfficeWindowsOnly (
+        sequence: 10
+        display: MS Office (Windows only)
+        return: officetopdf
+        help {
+            helpText: Uses Microsoft Office to do the conversion and following module http://officetopdf.codeplex.com
+        }
+    )
+
+)
+
+customAttribute attribute_04 (
+    apexlangName: outputType
+    attribute: 4
+    name: Output Type
+    type: selectList
+    appearance {
+        sequence: 31
+    }
+    default {
+        value: docx
+    }
+
+    entry apexOfficeEditAoe (
+        sequence: 570
+        display: APEX Office Edit (AOE)
+        return: aoe
+        help {
+            helpText: This option will not merge the template and the data, instead, the template is sent to an APEX Office Edit (AOE) region, where the data will be automatically loaded in the AOP sidebar, and the template will be available to edit. It's recommended to use a small sample data set.
+        }
+    )
+
+    entry calendarIcs (
+        sequence: 240
+        display: Calendar (ics)
+        return: ics
+    )
+
+    entry calendarIfb (
+        sequence: 250
+        display: Calendar (ifb)
+        return: ifb
+    )
+
+    entry csvCsv (
+        sequence: 68
+        display: CSV (csv)
+        return: csv
+        help {
+            helpText: Comma separated values file. Text file containing information separated by commas.
+        }
+    )
+
+    entry definedByApexItem (
+        sequence: 900
+        display: Defined by APEX Item
+        return: apex_item
+    )
+
+    entry excelWithMacrosXlsm (
+        sequence: 220
+        display: Excel with macros (xlsm)
+        return: xlsm
+    )
+
+    entry excelXls (
+        sequence: 320
+        display: Excel (xls)
+        return: xls
+        help {
+            helpText: Old Microsoft Excel version
+        }
+    )
+
+    entry excelXlsx (
+        sequence: 20
+        display: Excel (xlsx)
+        return: xlsx
+        advanced {
+            quickPick: true
+        }
+    )
+
+    entry htmlHtml (
+        sequence: 60
+        display: HTML (html)
+        return: html
+    )
+
+    entry imageJpeg (
+        sequence: 90
+        display: Image (jpeg)
+        return: jpeg
+        help {
+            helpText: Template must be PDF. Output will be zip if pdf contains multiple pages. Otherwise .jpeg.
+        }
+    )
+
+    entry jsonJson (
+        sequence: 560
+        display: JSON (json)
+        return: json
+        help {
+            helpText: JSON stands for JavaScript Object Notation. JSON is a lightweight data-interchange format.
+        }
+    )
+
+    entry markdownMd (
+        sequence: 65
+        display: Markdown (md)
+        return: md
+    )
+
+    entry onePagePdfPdf (
+        sequence: 69
+        display: One Page PDF (pdf)
+        return: onepagepdf
+    )
+
+    entry opendocumentPresentationOdp (
+        sequence: 540
+        display: OpenDocument Presentation (odp)
+        return: odp
+        help {
+            helpText: OpenOffice Powerpoint
+        }
+    )
+
+    entry opendocumentSpreadsheetOds (
+        sequence: 530
+        display: OpenDocument Spreadsheet (ods)
+        return: ods
+        help {
+            helpText: OpenOffice Excel
+        }
+    )
+
+    entry opendocumentTextOdt (
+        sequence: 520
+        display: OpenDocument Text (odt)
+        return: odt
+        help {
+            helpText: OpenOffice Word
+        }
+    )
+
+    entry pdfAttachmentsPdf (
+        sequence: 80
+        display: PDF Attachments (pdf)
+        return: get_attachments
+        help {
+            helpText: Retrieve attachments from a PDF
+        }
+    )
+
+    entry pdfFormFieldsPdf (
+        sequence: 70
+        display: PDF Form Fields (pdf)
+        return: form_fields
+        help {
+            helpText: Get the form fields defined on a PDF.
+        }
+    )
+
+    entry pdfPdf (
+        sequence: 40
+        display: PDF (pdf)
+        return: pdf
+        advanced {
+            quickPick: true
+        }
+    )
+
+    entry powerpointPpt (
+        sequence: 330
+        display: PowerPoint (ppt)
+        return: ppt
+        help {
+            helpText: Old Microsoft PowerPoint version
+        }
+    )
+
+    entry powerpointPptx (
+        sequence: 30
+        display: PowerPoint (pptx)
+        return: pptx
+        advanced {
+            quickPick: true
+        }
+    )
+
+    entry powerpointWithMacrosPptm (
+        sequence: 230
+        display: PowerPoint with macros (pptm)
+        return: pptm
+    )
+
+    entry richTextFormatRtf (
+        sequence: 67
+        display: Rich Text Format (rtf)
+        return: rtf
+    )
+
+    entry textTxt (
+        sequence: 66
+        display: Text (txt)
+        return: txt
+    )
+
+    entry wordDoc (
+        sequence: 310
+        display: Word (doc)
+        return: doc
+        help {
+            helpText: Old Microsoft Word version
+        }
+    )
+
+    entry wordDocx (
+        sequence: 10
+        display: Word (docx)
+        return: docx
+        advanced {
+            quickPick: true
+        }
+    )
+
+    entry wordWithMacrosDocm (
+        sequence: 210
+        display: Word with macros (docm)
+        return: docm
+    )
+
+    entry xmlXml (
+        sequence: 550
+        display: XML (xml)
+        return: xml
+        help {
+            helpText: Extensible Markup Language is a markup language that defines a set of rules for encoding documents in a format that is both human-readable and machine-readable.
+        }
+    )
+
+)
+
+customAttribute attribute_05 (
+    apexlangName: settingsPackage
+    attribute: 5
+    name: Settings package
+    scope: app
+    validation {
+        maxLength: 300
+    }
+    appearance {
+        sequence: 5000
+    }
+    builder {
+        showInWizard: false
+        displayWidth: 80
+    }
+    help {
+        helpText:
+            ```
+            When you use a different AOP server in DEV, TEST, PROD it might be easier to define the package where the settings (e.g. AOP server) is defined.<br/>
+            This makes deployments seamless and you don't need to update the plug-in component settings manually afterwards.<br/>
+            When a package is defined, we will always read those settings, regardless what is filled in above.
+            ```
+    }
+    examples {
+        examples: aop_settings_pkg
+    }
+)
+
+customAttribute attribute_05 (
+    apexlangName: dataType
+    attribute: 5
+    name: Data Type
+    type: selectList
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 20
+    }
+    default {
+        value: SQL
+    }
+
+    entry jsonDataPart (
+        sequence: 60
+        display: JSON (data part)
+        return: JSON
+        help {
+            helpText: Data in JSON format. No need to specify files or filename.
+        }
+    )
+
+    entry jsonRestGraphqlRaw (
+        sequence: 70
+        display: JSON (REST, GraphQL, Raw)
+        return: JSON_FILES
+        help {
+            helpText:
+                ```
+                Enter JSON in format 
+                <code>
+                [
+                { "filename": "xxx.docx",
+                  "datasource": "graphql",
+                  "query": "{human(id:\"1000\"){name height}",
+                  "endpoint": "https://api.graph.cool/simple/v1/",
+                  "headers": [{"Content-Type":"application/json"},{"Custom-Auth-Token":"xyz"}]
+                } 
+                ]
+                </code>
+                
+                The files part of the AOP structure will be filled in with the value specified here.
+                ```
+        }
+    )
+
+    entry none (
+        sequence: 80
+        display: None
+        return: NONE
+        help {
+            helpText: To only append or prepend files or to work with PDFs, set the data type to none.
+        }
+    )
+
+    entry plSqlFunctionReturningJson (
+        sequence: 20
+        display: PL/SQL Function (returning JSON)
+        return: PLSQL
+        help {
+            helpText:
+                ```
+                Return JSON as defined in the URL example above.
+                (see example in help of Data Source)
+                ```
+        }
+    )
+
+    entry plSqlFunctionReturningSql (
+        sequence: 15
+        display: PL/SQL Function (returning SQL)
+        return: PLSQL_SQL
+        help {
+            helpText:
+                ```
+                Enter a PL/SQL procedure that returns as select statement in which you can use a cursor to do nested records. Use "" as alias for column names to force lower case column names.<br/>
+                Note that you can use bind variables e.g. :PXX_ITEM.
+                ```
+        }
+    )
+
+    entry regionSClassicReportInteractiveRepo (
+        sequence: 40
+        display: Region(s): Classic Report, Interactive Report/Grid, SVG, Canvas, HTML, Other
+        return: IR
+        help {
+            helpText:
+                ```
+                <p>
+                Enter a comma separated list of static id of one of following region types:
+                <ul>
+                <li>Classic Report</li>
+                <li>Interactive Report</li>
+                <li>Interactive Grid</li>
+                <li>JET Chart</li>
+                <li>Any other region (static html, div, plugin) which you want to include</li>
+                </ul>
+                </p>
+                <p>
+                e.g. my_classic_report,ir1,jet2,my_div
+                </p>
+                <p>
+                In your template you can include the entire Interactive Report by using the tag {&interactive_1} for the first interactive report, {&interactive_2} for the second etc.
+                <br/>
+                To include an Interactive Grid as you see on the screen you use the tag {&interactive_<static_id>}.
+                <br/>
+                If you just want to get the data and do the styling yourself, you can use for classic report: {#<static_id>}{column}{/<static_id} or for interactive report {#aopireportdata_1}{column}{/aopireportdata_1}.
+                For interactive grid use {#aopigridoptions_<static_id>} {column} {/aopigridoptions_<static_id>}
+                <br/>
+                To include the svg(s) in the div use {%region} and specify in the Custom Attributes of the region: aop-region-as="client_svg"
+                <br/>
+                To include a canvas in the div use {%region} and specify in the Custom Attributes of the region: aop-region-as="client_canvas"
+                <br/>
+                To include the html in the div use {_region} and specify in the Custom Attributes of the region: aop-region-as="server_html" or aop-region-as="client_html". AOP will translate the html into native Word styling either by passing the HTML defined in the Region Source (server_html) or defined after rendering on the page (client_html).
+                <br/>
+                To include a screenshot of the div use {%region}, you don't have to specify anything or you can specify in the Custom Attributes of the region: aop-region-as="client_screenshot".
+                </p>
+                ```
+        }
+    )
+
+    entry sql (
+        sequence: 10
+        display: SQL
+        return: SQL
+        help {
+            helpText:
+                ```
+                Enter a select statement in which you can use a cursor to do nested records. Use "" as alias for column names to force lower case column names.<br/>You can also use SQL that generates JSON.
+                <br/>
+                Note that you can use bind variables e.g. :PXX_ITEM.
+                <br/>
+                
+                <p><b>Cursor syntax:</b></p>
+                <p>Details of a customer e.g. for a letter</p>
+                <pre>
+                select
+                    'file1' as "filename",
+                    cursor
+                    (select 
+                         c.cust_first_name as "cust_first_name",
+                         c.cust_last_name as "cust_last_name",
+                         c.cust_city as "cust_city"
+                       from demo_customers c
+                      where c.customer_id = :PXX_ITEM 
+                    ) as "data"
+                from dual
+                </pre>
+                
+                <p><b>Native JSON database functionality:</b></p>
+                <p>Details of a customer e.g. for a letter</p>
+                <pre>
+                select 
+                  json_arrayagg( 
+                    json_object( 
+                      'filename' value 'file1', 
+                      'data'     value (select 
+                                          json_arrayagg(
+                                            json_object( 
+                                              'cust_first_name' value c.cust_first_name, 
+                                              'cust_last_name'  value c.cust_last_name,
+                                              'cust_city'       value c.cust_city 
+                                            )
+                                          )  
+                                          from demo_customers c
+                                          where c.customer_id = :PXX_ITEM
+                                        )  
+                    )
+                  ) as aop_json
+                  from dual 
+                </pre>
+                ```
+        }
+    )
+
+    entry urlReturningJson (
+        sequence: 30
+        display: URL (returning JSON)
+        return: URL
+        help {
+            helpText:
+                ```
+                The Source should point to a URL that returns a JSON object with following format:
+                {
+                  "filename": "file1",
+                  "data":[{...}]
+                }
+                If the URL is using an APEX/ORDS REST call it will automatically be wrapped with additional JSON: {"items":[...]} This is ok as the plugin removes it for you.
+                ```
+        }
+    )
+
+    entry xmlDataPart (
+        sequence: 50
+        display: XML (data part)
+        return: XML
+        help {
+            helpText: Data in XML format. No need to specify files or filename.
+        }
+    )
+
+)
+
+customAttribute attribute_06 (
+    apexlangName: aopFailoverUrl
+    attribute: 6
+    name: AOP Failover URL
+    scope: app
+    appearance {
+        sequence: 1500
+    }
+    help {
+        helpText:
+            ```
+            Failover URL to APEX Office Print server incase the AOP URL fails. <br/>
+            When installed on the same server as the database using the default port you can use http://localhost:8010/ <br/>
+            To use AOP as a service, you can use http(s)://www.apexofficeprint.com/failover-api/ <br/>
+            When using HTTPS, make sure to add the certificate to the wallet of your database. Alternatively you can setup a proxy rule in your webserver to do the HTTPS handshaking so the AOP plugin can call a local url. Instructions how to setup both options can be found in the documentation.<br/>
+            When running AOP on the Oracle Cloud you are obliged to use HTTPS, so the url should be https://www.apexofficeprint.com/failover-api/ or https://www.cloudofficeprint.com/aop/
+            ```
+    }
+)
+
+customAttribute attribute_06 (
+    apexlangName: templateType
+    attribute: 6
+    name: Template Type
+    type: selectList
+    componentLov {
+        nullText: AOP Template
+    }
+    appearance {
+        sequence: 10
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            <b>AOP Template</b>: will generate a Word document with a starting template based on the data (JSON) that is submitted. <br/>
+            Documentation is also added on the next page(s) that describe the functions AOP will understand. <br/>
+            When the output is APEX Office Edit, the available tags will be automatically loaded in the AOP sidebar.
+            </p>
+            ```
+    }
+
+    entry aopReport (
+        sequence: 1
+        display: AOP Report
+        return: AOP_REPORT
+        help {
+            helpText: AOP will generate a report for you based on the Print Attributes specified in the given region (in case multiple regions are specified, the first region is used for the Print Attributes).
+        }
+    )
+
+    entry apexReport (
+        sequence: 3
+        display: APEX Report
+        return: APEX_REPORT
+        help {
+            helpText:
+                ```
+                From APEX 20.2 onwards, APEX supports the creation of native Excel and PDF of a region. Using APEX Report will use this feature. Note: only 1 region (static id) can be rendered.
+                An alternative to APEX Report is an AOP Report, which uses the AOP rendering and which supports also HTML expressions.
+                ```
+        }
+    )
+
+    entry apexReportDataOnly (
+        sequence: 4
+        display: APEX Report (Data only)
+        return: APEX_REPORT_DO
+        help {
+            helpText:
+                ```
+                From APEX 20.2 onwards, APEX supports the creation of native Excel and PDF of a region. Using APEX Report will use this feature. Data only will remove highlights etc. and just export the data. Note: only 1 region (static id) can be rendered.
+                An alternative to APEX Report is an AOP Report, which uses the AOP rendering and which supports also HTML expressions.
+                ```
+        }
+    )
+
+    entry filenameWithDatabaseDirectory (
+        sequence: 35
+        display: Filename (with database directory)
+        return: DB_DIRECTORY
+        help {
+            helpText:
+                ```
+                Enter the Database directory colon separated with the filename. <br/>
+                e.g. AOP_TEMPLATE:my_template.docx
+                <br/><br/>
+                Example how to create Database directory: <br/>
+                CREATE DIRECTORY AOP_TEMPLATE AS '/home/oracle/aop_template';
+                ```
+        }
+    )
+
+    entry filenameWithPathRelativeToAopServer (
+        sequence: 30
+        display: Filename (with path relative to AOP server)
+        return: FILENAME
+        help {
+            helpText: Enter the path and filename of the template which is stored on the same server AOP is running at.
+        }
+    )
+
+    entry json (
+        sequence: 25
+        display: JSON
+        return: JSON
+        help {
+            helpText:
+                ```
+                Add the JSON of "template" in here. <br/>
+                e.g.:
+                <pre>
+                {"filename":"aop_template_d01.docx", "template_type":"docx"}
+                </pre>
+                ```
+        }
+    )
+
+    entry none (
+        sequence: 60
+        display: None
+        return: NONE
+        help {
+            helpText: To only append or prepend files or to fill PDFs, set the template type to none.
+        }
+    )
+
+    entry plSqlFunctionReturningJson (
+        sequence: 20
+        display: PL/SQL Function (returning JSON)
+        return: PLSQL
+        help {
+            helpText:
+                ```
+                Return JSON object with following format: 
+                <pre>
+                {
+                  "file":"clob base 64 data",
+                  "template_type":"docx,xlsx,pptx"
+                }
+                </pre>
+                ```
+        }
+    )
+
+    entry plSqlFunctionReturningSql (
+        sequence: 15
+        display: PL/SQL Function (returning SQL)
+        return: PLSQL_SQL
+        help {
+            helpText:
+                ```
+                Enter a PL/SQL procedure that returns a select statement with two columns: template_type and file (in this order) <br/>
+                - template_type: docx, xlsx, pptx, html, md <br/>
+                - file: blob column
+                <br/>
+                Note that you can use bind variables e.g. :PXX_ITEM.
+                ```
+        }
+    )
+
+    entry sql (
+        sequence: 10
+        display: SQL
+        return: SQL
+        help {
+            helpText:
+                ```
+                Query that returns two columns: template_type and file (in this order) <br/>
+                - template_type: docx, xlsx, pptx, html, md <br/>
+                - file: blob column
+                ```
+        }
+    )
+
+    entry staticApplicationFiles (
+        sequence: 5
+        display: Static Application Files
+        return: APEX
+        help {
+            helpText:
+                ```
+                Enter the filename of the file uploaded to your Shared Components > Static Application Files<br/>
+                e.g. aop_template_d01.docx
+                ```
+        }
+    )
+
+    entry staticWorkspaceFiles (
+        sequence: 7
+        display: Static Workspace Files
+        return: WORKSPACE
+        help {
+            helpText:
+                ```
+                Enter the filename of the file uploaded to your Shared Components > Static Workspace Files<br/>
+                e.g. aop_template_d01.docx
+                ```
+        }
+    )
+
+    entry urlCallFromAop (
+        sequence: 50
+        display: URL (call from AOP)
+        return: URL_AOP
+        help {
+            helpText:
+                ```
+                Enter the url to your template in docx, xlsx or pptx. <br/>
+                e.g. https://www.apexofficeprint.com/templates/aop_template_d01.docx 
+                <br/><br/>
+                Always make sure your url ends with the filename. E.g. for Google Drive add to the end of the url &aop=.docx
+                <br/><br/>
+                This call is done from AOP, so the AOP server needs to have access to the url.
+                ```
+        }
+    )
+
+    entry urlCallFromDb (
+        sequence: 40
+        display: URL (call from DB)
+        return: URL
+        help {
+            helpText:
+                ```
+                Enter the url to your template in docx, xlsx or pptx. <br/>
+                e.g. https://www.apexofficeprint.com/templates/aop_template_d01.docx
+                <br/><br/>
+                Always make sure your url ends with the filename. E.g. for Google Drive add to the end of the url &aop=.docx
+                <br/><br/>
+                This call is done from the database, so the database server needs to have access to the url.
+                ```
+        }
+    )
+
+)
+
+customAttribute attribute_07 (
+    apexlangName: failoverProcedure
+    attribute: 7
+    name: Failover procedure
+    scope: app
+    type: plsqlCode
+    appearance {
+        sequence: 9000
+    }
+    dependingOn {
+        attribute: @attribute_06/app
+        conditionType: isNotNull
+    }
+    help {
+        helpText:
+            ```
+            Specify the procedure that should be called when the failover url is used.
+            The procedure can for example send an email to notify the primary AOP url is not used, but the fallback url.
+            ```
+    }
+    examples {
+        examples: aop_sample_pkg.failover_procedure;
+    }
+)
+
+customAttribute attribute_07 (
+    apexlangName: templateSource3
+    attribute: 7
+    name: Template Source
+    type: textarea
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 11
+    }
+    dependingOn {
+        attribute: @attribute_06/component
+        conditionType: inList
+        list: [
+            APEX
+            WORKSPACE
+            FILENAME
+            URL
+            URL_AOP
+            DB_DIRECTORY
+            JSON
+        ]
+    }
+    help {
+        helpText:
+            ```
+            <p>The templates need to be of format: Word (docx), Excel (xlsx), Powerpoint (pptx), HTML (html), Text (txt), CSV (csv) or Markdown (md).
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <p>
+            Reference a file in Shared Components > Static Application Files or Static Workspace Files <br/>
+            <pre>
+            aop_template.docx
+            </pre>
+            In case you want to specify the template dynamically, use the SQL option with following:
+            <pre>
+            select case 
+                    when mime_type = 'application/octet-stream'
+                    then substr(file_name, instr(file_name,'.',-1)+1) 
+                    else mime_type
+                    end as template_type, 
+                    file_content as template_blob
+              from apex_application_static_files
+             where file_name    = :PXX_YOUR_ITEM
+               and application_id = :APP_ID
+            </pre>
+            </p>
+            <p>
+            Reference a file on the server. Include the path relative to the AOP executable.
+            </p>
+            <p>
+            Reference a url, accessible from the database.
+            </p>
+            <p>
+            Reference a url, accessible from the AOP Server.
+            </p>
+            <p>
+            Specify the region static id where the Print Attributes are specified for the AOP Report.
+            </p>
+            <p>
+            Reference a database directory and file on the database server. Format: DIRECTORY:FILENAME e.g. AOP_TEMPLATE:my_template.docx
+            </p>
+            ```
+    }
+)
+
+customAttribute attribute_08 (
+    apexlangName: loggingPackage
+    attribute: 8
+    name: Logging package
+    scope: app
+    appearance {
+        sequence: 8000
+    }
+    help {
+        helpText:
+            ```
+            If you want every request to aop_api_pkg.plsql_call_to_aop to be logged, you can specify a logging package here.<br/>
+            The logging package needs at least a function and a procedure with following definition:
+            <pre>
+            function start_request (
+              p_data_type                in varchar2,
+              p_data_source              in clob,
+              p_template_type            in varchar2,
+              p_template_source          in clob,
+              p_output_type              in varchar2,
+              p_output_filename          in varchar2 default null,
+              p_output_type_item_name    in varchar2 default null,
+              p_output_to                in varchar2 default null,
+              p_procedure                in varchar2 default null,
+              p_binds                    in varchar2 default null,
+              p_special                  in varchar2 default null,
+              p_aop_remote_debug         in varchar2 default null,
+              p_output_converter         in varchar2 default null,
+              p_aop_url                  in varchar2,
+              p_api_key                  in varchar2,
+              p_aop_mode                 in varchar2 default null,
+              p_app_id                   in number   default null,
+              p_page_id                  in number   default null,
+              p_user_name                in varchar2 default null,
+              p_init_code                in clob     default null,
+              p_output_encoding          in varchar2 default null,
+              p_output_split             in varchar2 default null,
+              p_output_merge             in varchar2 default null,
+              p_output_even_page         in varchar2 default null,
+              p_output_merge_making_even in varchar2 default null,
+              p_failover_aop_url         in varchar2 default null,
+              p_failover_procedure       in varchar2 default null,
+              p_log_procedure            in varchar2 default null,
+              p_prepend_files_sql        in clob     default null,
+              p_append_files_sql         in clob     default null,
+              p_compare_files_sql        in clob     default null,
+              p_media_files_sql          in clob     default null,
+              p_sub_templates_sql        in clob     default null,
+              p_attachments_sql          in clob     default null,
+              p_ref_cursor               in clob     default null,
+              p_sql_array                in clob     default null,
+              p_ig_selected_pks          in varchar2 default null
+            ) return number;
+            
+            
+            procedure end_request (
+              p_aop_log_id            in number,  
+              p_status                in varchar2, 
+              p_aop_json              in clob,
+              p_aop_error             in varchar2, 
+              p_ora_sqlcode           in number, 
+              p_ora_sqlerrm           in varchar2
+            )
+            </pre>
+            ```
+    }
+    examples {
+        examples: see aop_log_pkg that comes with the AOP Sample app.
+    }
+)
+
+customAttribute attribute_08 (
+    apexlangName: outputTypeApexItem
+    attribute: 8
+    name: Output Type APEX Item
+    type: pageItem
+    appearance {
+        sequence: 32
+    }
+    dependingOn {
+        attribute: @attribute_04/component
+        conditionType: =
+        value: apex_item
+    }
+    help {
+        helpText: APEX item that contains the output type. See Output Type help text for valid list of output types.
+    }
+)
+
+customAttribute attribute_09 (
+    apexlangName: customConverter
+    attribute: 9
+    name: Custom converter
+    scope: app
+    appearance {
+        sequence: 4050
+    }
+    dependingOn {
+        attribute: @attribute_04/app
+        conditionType: =
+        value: custom
+    }
+    help {
+        helpText: Specify the name of the custom converter as specified at the AOP Server e.g. abiword
+    }
+    examples {
+        examples:
+            ```
+            <p>
+            AOP Server config looks like this:
+            <br/>
+            <pre><code>
+            {
+                "converters": {
+                    "abiword":{
+                        "command": "abiword --to={outputFormat} --to-name={outputFile} {inputFile}"
+                    },
+                    "other":{
+                        "command":""
+                    }
+                }
+            }
+            </code></pre>
+            </p>
+            <p>
+            This means you can use abiword or other as the name of the custom converter.
+            </p>
+            ```
+    }
+)
+
+customAttribute attribute_09 (
+    apexlangName: templateSource
+    attribute: 9
+    name: Template Source
+    type: sqlQuery
+    validation {
+        required: true
+        minColumns: 2
+        maxColumns: 2
+    }
+    appearance {
+        sequence: 12
+    }
+    dependingOn {
+        attribute: @attribute_06/component
+        conditionType: =
+        value: SQL
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            When you use your own table (or the one that is provided in the sample AOP app) to store the template documents, this select statement might help:
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            To query your own table:
+            <pre>
+             select template_type, template_blob
+              from aop_template  
+             where id = :P1_TEMPLATE_ID 
+            </pre>
+            To query the APEX static application files use:
+            <pre>
+            select case 
+                    when mime_type = 'application/octet-stream'
+                    then substr(file_name, instr(file_name,'.',-1)+1) 
+                    else mime_type
+                    end as template_type, 
+                    file_content as template_blob
+              from apex_application_static_files
+             where file_name    = :PXX_YOUR_ITEM
+               and application_id = :APP_ID
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_10 (
+    apexlangName: aopMode
+    attribute: 10
+    name: AOP Mode
+    scope: app
+    type: selectList
+    componentLov {
+        nullText: Production
+    }
+    appearance {
+        sequence: 2500
+    }
+    help {
+        helpText:
+            ```
+            Production (=null)
+              Credits will be used.
+            ```
+    }
+
+    entry derivedFromApplicationItem (
+        sequence: 20
+        display: Derived from Application Item
+        return: APEX_ITEM
+        help {
+            helpText:
+                ```
+                This option is useful when you want to dynamically set the AOP mode.<br/>
+                The application item needs to be called AOP_MODE and can have values: development, production  or null (=production).
+                ```
+        }
+    )
+
+    entry development (
+        sequence: 10
+        display: Development
+        return: development
+        help {
+            helpText: In development mode no credits are used.
+        }
+    )
+
+)
+
+customAttribute attribute_10 (
+    apexlangName: templateSource2
+    attribute: 10
+    name: Template Source
+    type: plsqlFunctionBodyReturningVarchar2
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 13
+    }
+    dependingOn {
+        attribute: @attribute_06/component
+        conditionType: inList
+        list: [
+            PLSQL
+            PLSQL_SQL
+        ]
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            By using PL/SQL to create your own SQL or JSON, you're more flexible. You can use bind variables and page items.
+            </p>
+            <p>
+            The JSON format should be file and template_type. You can use substitution variables in the PL/SQL code. <br/>
+            The structure is like this:
+            </p>
+            <pre>
+            declare 
+              l_return        clob; 
+            begin 
+              l_return := '{ "file": "", "template_type": "docx" }'; 
+            
+              return l_return; 
+            end;
+            </pre>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <h3>PL/SQL Function (returning SQL)</h3>
+            <pre>
+            declare
+              l_return clob;
+            begin
+              l_return := q'[
+                select
+                  a.TEMPLATE_TYPE as template_type,
+                  apex_web_service.blob2clobbase64(a.TEMPLATE_BLOB) as file
+                 from aop_template a
+                where id = 1
+              ]';
+              return l_return;
+            end;
+            </pre>
+            
+            <br/><br/>
+            
+            <h3>PL/SQL Function (returning JSON)</h3>
+            <pre>
+            declare 
+              l_return        clob; 
+              l_template      clob; 
+              l_template_type aop_template.template_type%type; 
+            begin 
+              select template_type, apex_web_service.blob2clobbase64(template_blob) template 
+                into l_template_type, l_template 
+                from aop_template 
+               where id = :p4_template;
+            
+              l_return := '{ "file": "' || replace(l_template,'"', '\u0022') 
+                          || '",' || ' "template_type": "' || replace(l_template_type,'"', '\u0022') 
+                          || '" }'; 
+            
+              return l_return;
+            end;
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_11 (
+    apexlangName: dataSource
+    attribute: 11
+    name: Data Source
+    type: sqlQuery
+    validation {
+        required: true
+        minColumns: 1
+        maxColumns: 2
+    }
+    appearance {
+        sequence: 21
+    }
+    dependingOn {
+        attribute: @attribute_05/component
+        conditionType: =
+        value: SQL
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            A SQL statement is the easiest to use, either by using the cursor syntax or native JSON database functionality.<br/>
+            Images need to be base64 encoded. You can reference items by using :ITEM 
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <p><b>Cursor syntax:</b></p>
+            <p>List of all customers e.g. to send a letter to all</p>
+            <pre>
+            select
+                'file1' as "filename",
+                cursor
+                (select 
+                   cursor(select
+                              c.cust_first_name as "cust_first_name",
+                              c.cust_last_name as "cust_last_name",
+                              c.cust_city as "cust_city" 
+                            from aop_sample_customers c) as "customers"
+                   from dual) as "data"
+            from dual 
+            </pre>
+            <p>Details of all orders of a customer e.g. for invoices</p>
+            <pre>
+            select
+              'file1' as "filename", 
+              cursor(
+                select
+                  c.cust_first_name as "cust_first_name",
+                  c.cust_last_name as "cust_last_name",
+                  c.cust_city as "cust_city",
+                  cursor(select o.order_total as "order_total", 
+                                'Order ' || rownum as "order_name",
+                            cursor(select p.product_name as "product_name", 
+                                          i.quantity as "quantity",
+                                          i.unit_price as "unit_price", 
+                                          apex_web_service.blob2clobbase64(p.product_image) as "image"
+                                     from aop_sample_order_items i, aop_sample_product_info p
+                                    where o.order_id = i.order_id
+                                      and i.product_id = p.product_id
+                                  ) "product"
+                           from aop_sample_orders o
+                          where c.customer_id = o.customer_id
+                        ) "orders"
+                from aop_sample_customers c
+                where customer_id = :P1_CUSTOMER_ID
+              ) as "data"
+            from dual
+            </pre>
+            
+            <p><b>Native JSON database functionality:</b></p>
+            <p>Details of a customer e.g. for a letter</p>
+            <pre>
+            select 
+              json_arrayagg( 
+                json_object( 
+                  'filename' value 'file1', 
+                  'data'     value (select 
+                                      json_arrayagg(
+                                        json_object( 
+                                          'cust_first_name' value c.cust_first_name, 
+                                          'cust_last_name'  value c.cust_last_name,
+                                          'cust_city'       value c.cust_city 
+                                        )
+                                      )  
+                                      from aop_sample_customers c
+                                      where c.customer_id = 1
+                                    )  
+                )
+              ) as aop_json
+              from dual 
+            </pre>
+            <p>Details of all orders of a customer e.g. for invoices</p>
+            <pre>
+            select 
+            json_arrayagg( 
+            json_object( 
+            'filename' value 'file1', 
+            'data'     value (
+              select 
+                json_arrayagg(
+                  json_object( 
+                    'cust_first_name' value c.cust_first_name, 
+                    'cust_last_name'  value c.cust_last_name,
+                    'cust_city'       value c.cust_city, 
+                    'orders'          value (
+                        select 
+                          json_arrayagg(
+                            json_object(                               
+                              'order_total' value o.order_total, 
+                              'order_name'  value 'Order ' || rownum,
+                              'order_lines' value (
+                                  select 
+                                    json_arrayagg(
+                                      json_object(                               
+                                        'product_name' value p.product_name, 
+                                        'quantity'     value i.quantity,
+                                        'unit_price'   value i.unit_price
+                                      )
+                                    returning clob)      
+                                    from aop_sample_order_items i, aop_sample_product_info p
+                                    where o.order_id = i.order_id
+                                      and i.product_id = p.product_id
+                                )
+                            )
+                          returning clob)      
+                          from aop_sample_orders o
+                        where o.customer_id = c.customer_id
+                      )
+                  )
+                returning clob)  
+                from aop_sample_customers c
+                where c.customer_id = :P1_CUSTOMER_ID
+              )
+            )
+            returning clob) as aop_json
+            from dual
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_12 (
+    apexlangName: dataSource2
+    attribute: 12
+    name: Data Source
+    type: plsqlFunctionBodyReturningVarchar2
+    validation {
+        required: true
+    }
+    appearance {
+        sequence: 22
+    }
+    dependingOn {
+        attribute: @attribute_05/component
+        conditionType: inList
+        list: [
+            PLSQL
+            PLSQL_SQL
+        ]
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            By using PL/SQL to create your own SQL or JSON, you're more flexible. You can use bind variables and page items.
+            </p>
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <h3>PL/SQL Function (returning SQL)</h3>
+            <pre>
+            declare
+              l_return clob;
+            begin
+              l_return := q'[
+                select
+                  'file1' as "filename",
+                  cursor(
+                    select
+                      c.cust_first_name as "cust_first_name",
+                      c.cust_last_name as "cust_last_name",
+                      c.cust_city as "cust_city",
+                      cursor(
+                        select
+                          o.order_total as "order_total",
+                          'Order ' || rownum as "order_name",
+                          cursor(
+                            select
+                              p.product_name as "product_name",
+                              i.quantity as "quantity",
+                              i.unit_price as "unit_price",
+                              apex_web_service.blob2clobbase64(p.product_image) as "image"
+                            from
+                              aop_sample_order_items i, aop_sample_product_info p
+                            where
+                              o.order_id = i.order_id
+                              and i.product_id = p.product_id
+                                ) "product"
+                        from
+                          aop_sample_orders o
+                        where
+                          c.customer_id = o.customer_id
+                            ) "orders"
+                    from
+                      aop_sample_customers c
+                    where
+                      customer_id = :P4_CUSTOMER_ID
+                        ) as "data"
+                from dual
+              ]';
+              return l_return;
+            end;
+            </pre>
+            
+            <br/><br/>
+            
+            <h3>PL/SQL Function (returning JSON)</h3>
+            <pre>
+            declare
+              l_cursor sys_refcursor;
+              l_return clob;
+            begin
+              apex_json.initialize_clob_output(dbms_lob.call, true, 2) ;
+              open l_cursor for 
+              select 'file1' as "filename",
+              cursor
+                (select
+                    c.cust_first_name as "cust_first_name",
+                    c.cust_last_name  as "cust_last_name" ,
+                    c.cust_city       as "cust_city"      ,
+                    cursor
+                    (select
+                        o.order_total      as "order_total",
+                        'Order ' || rownum as "order_name" ,
+                        cursor
+                        (select
+                            p.product_name                                    as "product_name",
+                            i.quantity                                        as "quantity"    ,
+                            i.unit_price                                      as "unit_price"  ,
+                            apex_web_service.blob2clobbase64(p.product_image) as "image"
+                          from
+                            aop_sample_order_items i,
+                            aop_sample_product_info p
+                          where
+                            o.order_id       = i.order_id
+                            and i.product_id = p.product_id
+                        ) "product"
+                    from
+                      aop_sample_orders o
+                    where
+                      c.customer_id = o.customer_id
+                    ) "orders"
+                  from
+                    aop_sample_customers c
+                  where
+                    customer_id = :P4_CUSTOMER_ID
+                ) as "data" 
+              from dual;
+              apex_json.write(l_cursor) ;
+              l_return := apex_json.get_clob_output;
+              return l_return;
+            end;
+            </pre>
+            ```
+    }
+)
+
+customAttribute attribute_13 (
+    apexlangName: regionStaticIdS
+    attribute: 13
+    name: Region Static Id(s)
+    appearance {
+        sequence: 25
+    }
+    dependingOn {
+        attribute: @attribute_05/component
+        conditionType: =
+        value: IR
+    }
+    help {
+        helpText:
+            ```
+            <p>
+            Define one or more Static Id(s) of the report region. Static ids should be separated by a comma. e.g. ir1,ir2 <br/>
+            You can set the Static ID of the region in the region settings (Advanced section). Under Static ID in the Custom Attributes you can define how AOP should behave: aop-region-as="client_svg / client_html / client_screenshot". Depending this setting, AOP will render the HTML from the server or it will take from client the svg, html or take a screenshot of the region. 
+            <br><br>
+            You can reference regions from other APEX pages by using the following syntax:<br>
+            <code>P[page-number]#[region-static-id]</code>
+            
+            <p>Where:</p>
+            
+            <ul>
+              <li><code>page-number</code> is the page number you want to reference</li>
+              <li><code>region-static-id</code> is the Static ID of the region on that page</li>
+            </ul>
+            
+            <p>For example, to reference a region with Static ID <strong>rid</strong> that is on page <strong>33</strong>, you would use:</p>
+            <p><code>P33#rid</code></p>
+            
+            <p>This allows you to include content from regions that exist on different pages of your application.</p>
+            </p>
+            ```
+    }
+)
+
+customAttribute attribute_14 (
+    apexlangName: outputTo
+    attribute: 14
+    name: Output To
+    type: selectList
+    componentLov {
+        nullText: Browser (file)
+    }
+    appearance {
+        sequence: 140
+    }
+    help {
+        helpText: By default the file that's generated by AOP, will be downloaded by the Browser and saved on your harddrive.
+    }
+
+    entry apexOfficeEditAoe (
+        sequence: 90
+        display: APEX Office Edit (AOE)
+        return: APEX_OFFICE_EDIT
+        help {
+            helpText: This option allows you to call a procedure first and next show the output in APEX Office Edit (AOE), the editor that can show and edit Word, Excel, PowerPoint, PDF, and Text straight from the browser.
+        }
+    )
+
+    entry asynchronousReturnsUrl (
+        sequence: 70
+        display: Asynchronous (Returns URL)
+        return: ASYNC
+        help {
+            helpText: AOP will process the request asynchronously. This is especially useful for long-running processes. A URL will be passed to g_async_url where the file will be available to download when AOP is finished. Use the aop_api_pkg.poll_async_file procedure to check and download the file. Optionally a procedure can be defined (see definition in procedure help).
+        }
+    )
+
+    entry cloudDropboxGoogleDriveOnedriveAmaz (
+        sequence: 50
+        display: Cloud (Dropbox, Google Drive, OneDrive, Amazon S3)
+        return: CLOUD
+        help {
+            helpText:
+                ```
+                Save the output straight in a directory on the cloud. <br/>
+                Use following global variables to define the provider and location.
+                <ul>
+                <li>g_cloud_provider (dropbox, gdrive, onedrive, amazon_s3)</li>
+                <li>g_cloud_location (directory, or bucket with directory on Amazon)</li>
+                <li>g_cloud_access_token (oauth token)</li>
+                </ul>
+                ```
+        }
+    )
+
+    entry definedInPostProcessEGPrinter (
+        sequence: 60
+        display: Defined in Post Process (e.g. Printer)
+        return: NA
+        help {
+            helpText: Use when an external post-process command is specified and the output is only needed to be passed to that process. For example when you want to print directly to a Printer or call an OS command.
+        }
+    )
+
+    entry directoryOnAopServer (
+        sequence: 40
+        display: Directory (on AOP Server)
+        return: DIRECTORY
+        help {
+            helpText: Save the file to a directory specified with g_output_directory. The default directory on the AOP Server is outputfiles.
+        }
+    )
+
+    entry directoryOnDatabaseServer (
+        sequence: 45
+        display: Directory (on Database Server)
+        return: DB_DIRECTORY
+        help {
+            helpText:
+                ```
+                Save the file to a database directory specified with g_output_directory. 
+                <br/>
+                Example how to create Database directory: <br/>
+                CREATE DIRECTORY AOP_TEMPLATE AS '/home/oracle/aop_output';
+                ```
+        }
+    )
+
+    entry inlineRegionPdfHtmlMdTxtOnly (
+        sequence: 30
+        display: Inline Region (pdf/html/md/txt only)
+        return: BROWSER_INLINE
+        help {
+            helpText: add data-aop-inline-pdf="Name of Dynamic Action" or data-aop-inline-txt="Name of Dynamic Action" to a region, div, textarea of other.
+        }
+    )
+
+    entry pdfRegionPro (
+        sequence: 100
+        display: PDF Region Pro
+        return: PDF_REGION_PRO
+        help {
+            helpText: This option allows you to call a procedure first and next show the output in the Plug-ins Pro PDF Region Pro, the PDF Viewer that show and edit a PDF from the browser.
+        }
+    )
+
+    entry procedure (
+        sequence: 10
+        display: Procedure
+        return: PROCEDURE
+        help {
+            helpText:
+                ```
+                This option will call a procedure in a specific format (see definition in procedure help). This option is useful in case you don't need the file on your own hard drive, but for example, you want to mail the document automatically or want to store it in the database.
+                In that case, you can create a procedure that adds the generated document as an attachment to your apex_mail.send.
+                ```
+        }
+    )
+
+    entry procedureAndBrowserFile (
+        sequence: 20
+        display: Procedure and Browser (file)
+        return: PROCEDURE_BROWSER
+        help {
+            helpText:
+                ```
+                This option allows you to call a procedure first and next download the file to your hard drive.
+                An example is when you first want to store the generated document in a table before letting the browser download it. (see definition in procedure help)
+                ```
+        }
+    )
+
+    entry procedureAndInlineRegionPdfHtmlMdTx (
+        sequence: 35
+        display: Procedure and Inline Region (pdf/html/md/txt only)
+        return: PROCEDURE_INLINE
+        help {
+            helpText: This option allows you to call a procedure first and next show the output in a region. Add data-aop-inline-pdf="Name of Dynamic Action" or data-aop-inline-txt="Name of Dynamic Action" to a region, div, textarea of other.
+        }
+    )
+
+    entry webServicePostRequest (
+        sequence: 80
+        display: Web Service (POST Request)
+        return: WEB_SERVICE
+        help {
+            helpText: "AOP will call the web service (a POST Request) defined in g_web_service_url once AOP is finished producing the file. Extra headers can be added to the POST request by defining them in g_web_service_headers e.g. {\"file_id\": \"F123\", \"access_token\": \"A456789\"}"
+        }
+    )
+
+)
+
+customAttribute attribute_15 (
+    apexlangName: procedureName
+    attribute: 15
+    name: Procedure Name
+    appearance {
+        sequence: 150
+    }
+    dependingOn {
+        attribute: @attribute_14/component
+        conditionType: inList
+        list: [
+            PROCEDURE
+            PROCEDURE_BROWSER
+            PROCEDURE_INLINE
+            ASYNC
+            APEX_OFFICE_EDIT
+            PDF_REGION_PRO
+        ]
+    }
+    help {
+        helpText:
+            ```
+            Enter only the procedure name in this field (so without parameters) for example "download_prc".
+            The procedure in the database needs to be structured with the parameters as in the example. 
+            The procedure name can be any name, but the parameters need to match exactly as in the example.
+            You can add other parameters with a default value. 
+            You can reference page items in the procedure by using the v() function.
+            ```
+    }
+    examples {
+        examples:
+            ```
+            <p>
+            Create the following procedure in the database:
+            </p>
+            <pre>
+            create procedure send_email_prc(
+                p_output_blob      in blob,
+                p_output_filename  in varchar2,
+                p_output_mime_type in varchar2)
+            is
+              l_id   number;
+              l_to   varchar2(200);
+              l_from varchar2(200);
+            begin
+              -- in case you want to reference a page item
+              l_to := v('P1_EMAIL');
+            
+              -- sending an email with an attachment
+              l_id := apex_mail.send( 
+                        p_to   => l_to, 
+                        p_from => l_from, 
+                        p_subj => 'Mail from APEX with attachment', 
+                        p_body => 'Please review the attachment.', 
+                        p_body_html => '<b>Please</b> review the attachment.');
+            
+              apex_mail.add_attachment( 
+                  p_mail_id    => l_id, 
+                  p_attachment => p_output_blob, 
+                  p_filename   => p_output_filename, 
+                  p_mime_type  => p_output_mime_type) ;
+            
+              apex_mail.push_queue;    
+            end send_email_prc;
+            </pre>
+            
+            <br/><br/>
+            
+            <p>
+            Create the following procedure in the database with <b>template cache</b>:
+            </p>
+            <pre>
+            create procedure send_email_prc(
+                p_output_blob         in blob,
+                p_output_filename     in varchar2,
+                p_output_mime_type    in varchar2,
+                p_template_cache_hash in varchar2)
+            is
+            begin
+              insert into x (output_blob, output_filename, output_mime_type, template_cache_hash)
+              values (p_output_blob, p_output_filename, p_output_mime_type, p_template_cache_hash);
+            end send_email_prc;
+            </pre>
+            
+            <br/><br/>
+            <p>
+            Create the following procedure in the database for Output To <b>Asynchronous</b>:
+            </p>
+            <pre>
+            create procedure download_aop_async(
+              p_async_status     in varchar2, 
+              p_async_message    in varchar2, 
+              p_async_url        in varchar2, 
+              p_output_filename  in varchar2, 
+              p_output_mime_type in varchar2)
+            is
+            begin
+              insert into aop_output_async (async_status, async_message, async_url, filename, mime_type, last_update_date)
+              values (p_async_status, p_async_message, p_async_url, p_output_filename, p_output_mime_type, sysdate);
+            
+              commit;
+            
+              -- the p_async_url will contain the URL to download the file once it's ready.
+            end download_aop_async;
+            </pre>
+            
+            <br/><br/>
+            
+            <p>
+            When Output To <b>APEX Office Edit</b> is set, leave the procedure empty to take the settings defined in the APEX Office Edit region or create the following procedure in the database in case you want to call a custom function:
+            </p>
+            <pre>
+            create procedure download_aop_async(
+                p_output_blob        in blob,
+                p_output_filename    in varchar2,
+                p_output_mime_type   in varchar2,
+                p_primary_key_values out varchar2)
+            is
+                v_id                number;
+                v_session_id        number := v('APP_SESSION');
+                v_version           number := 1;
+                v_last_update_date  timestamp := systimestamp;
+                v_blob_owner        varchar2(50) := v('APP_USER');
+            begin
+                insert into aoe_files_custom(
+                  session_id,
+                  content,
+                  filename,
+                  mime_type,
+                  blob_owner,
+                  version,
+                  last_update_date
+                ) values(
+                  v_session_id,
+                  p_output_blob,
+                  p_output_filename,
+                  p_output_mime_type,
+                  v_blob_owner,
+                  v_version,
+                  v_last_update_date
+                )
+                returning id into v_id;
+                -- return    
+                p_primary_key_values := v_id;
+            end download_aop_async;
+            </pre>
+            ```
+    }
+)

@@ -1,0 +1,248 @@
+page 902 (
+    name: Transaction Source Audit
+    alias: TRANSACTION-SOURCE-AUDIT
+    title: Transaction Source Audit
+    pageGroup: @attendance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Transaction Source Audit
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region no-access-notice (
+        name: No Access
+        type: staticContent
+        source {
+            htmlCode: <p>You do not have permission to read transactions.</p>
+        }
+        layout {
+            sequence: 15
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 0
+        }
+    )
+
+    region source-unavailable-notice (
+        name: Source Unavailable
+        type: staticContent
+        source {
+            htmlCode: <p>The punch source system is temporarily unavailable. The unmatched-source-punch row below reflects partial data only.</p>
+        }
+        layout {
+            sequence: 16
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1 and REPORT_API_PKG.source_link_available_sql = 0
+        }
+    )
+
+    region transaction-source-audit-filters (
+        name: Transaction Source Audit Filters
+        type: staticContent
+        layout {
+            sequence: 18
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region transaction-source-audit-report (
+        name: Transaction Source Audit
+        type: classicReport
+        source {
+            location: localDatabase
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                begin
+                    return REPORT_API_PKG.get_source_audit_sql;
+                end;
+                ```
+            pageItemsToSubmit: [
+                "[P902_FROM_DATE"
+                "P902_TO_DATE]"
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYNoPagination
+        }
+        messages {
+            whenNoDataFound: No transaction source audit rows are available in your permitted scope for this date range.
+        }
+
+        column FIRST_DATE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: FIRST_DATE
+            }
+            layout {
+                sequence: 30
+            }
+        )
+
+        column LAST_DATE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: LAST_DATE
+            }
+            layout {
+                sequence: 40
+            }
+        )
+
+        column ROW_COUNT (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: ROW_COUNT
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column SOURCE_STATUS (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SOURCE_STATUS
+            }
+            layout {
+                sequence: 50
+            }
+        )
+
+        column SOURCE_TYPE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: SOURCE_TYPE
+            }
+            layout {
+                sequence: 10
+            }
+        )
+
+    )
+
+    pageItem P902_FROM_DATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @transaction-source-audit-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Include audited rows from this date.
+        }
+    )
+
+    pageItem P902_TO_DATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @transaction-source-audit-filters
+            slot: regionBody
+            alignment: left
+        }
+        sessionState {
+            storage: request
+        }
+        help {
+            helpText: Include audited rows through this date.
+        }
+    )
+
+    button apply-transaction-source-audit-filters (
+        buttonName: APPLY_TRANSACTION_SOURCE_AUDIT_FILTERS
+        label: Apply Filters
+        layout {
+            sequence: 30
+            region: @transaction-source-audit-filters
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)

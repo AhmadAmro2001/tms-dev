@@ -1,0 +1,799 @@
+page 30 (
+    name: Employees
+    alias: EMPLOYEES
+    title: Employees
+    pageGroup: @employees
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Employees
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region employees (
+        name: Employees_data
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select e.ID, e.EMPLOYEE_NUMBER, e.NAME, p.NAME AS PROJECT_NAME, l.NAME AS LOCATION_NAME,rh.ROTATION_ID, d.NAME AS DEPARTMENT_NAME, g.NAME AS GRADE_NAME, e.IS_ACTIVE, e.NATIONALITY, e.RELIGION, apex_page.get_url(p_page => 1145, p_items => 'P1145_ENTITY_ID', p_values => to_char(e.ID)) AS EDIT_URL,
+                apex_page.get_url(p_page => 1148, p_items => 'P1148_ENTITY_ID', p_values => to_char(e.ID)) AS VIEW_URL
+                   from EMPLOYEE e left join PROJECT p on p.ID=e.PROJECT_ID 
+                   left join LOCATION l on l.ID=e.LOCATION_ID 
+                   left join DEPARTMENT d on d.ID=e.DEPARTMENT_ID 
+                   left join GRADE g on g.ID=e.GRADE_ID
+                   LEFT JOIN (
+                    SELECT rh.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY rh.EMPLOYEE_ID
+                               ORDER BY rh.STARTED DESC
+                           ) AS RN
+                    FROM ROTATION_HISTORY rh
+                ) rh
+                    ON rh.EMPLOYEE_ID = e.EMPLOYEE_NUMBER
+                   AND rh.RN = 1
+                   left join ROTATION_PLAN rp on rp.id = rh.ROTATION_ID
+                  where e.LOCATION_ID in (select to_number(column_value) from table(apex_string.split(:APP_USER_LOCATION_IDS, ':'))) 
+                  AND (
+                    :P30_DEPARTMENTS IS NULL
+                    OR e.DEPARTMENT_ID = :P30_DEPARTMENTS
+                )
+                 AND (
+                    :P30_LOCATIONS IS NULL
+                    OR e.LOCATION_ID = :P30_LOCATIONS
+                )
+                 AND (
+                    :P30_PROJECTS IS NULL
+                    OR e.PROJECT_ID = :P30_PROJECTS
+                )
+                AND (
+                    :P30_NATONALITIES IS NULL
+                    OR e.NATIONALITY = :P30_NATONALITIES
+                )
+                AND (
+                    :P30_RELIGIONS IS NULL
+                    OR e.RELIGION = :P30_RELIGIONS
+                )
+                AND (
+                    :P30_ACTIVE IS NULL
+                    OR e.IS_ACTIVE = :P30_ACTIVE
+                )
+                AND (
+                    :P30_ROTATION IS NULL
+                    OR rp.id = :P30_ROTATION
+                )
+                  order by e.EMPLOYEE_NUMBER
+                ```
+            pageItemsToSubmit: [
+                P30_DEPARTMENTS
+                P30_LOCATIONS
+                P30_PROJECTS
+                P30_NATONALITIES
+                P30_RELIGIONS
+                P30_ACTIVE
+            ]
+        }
+        layout {
+            sequence: 80
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadEmployees') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47964075360343141
+        }
+
+        column DEPARTMENT_NAME (
+            type: plainText
+            heading {
+                heading: Department
+            }
+            layout {
+                sequence: 43
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 93
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#EDIT_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-edit"></span>
+                       Edit
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 113
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column GRADE_NAME (
+            type: plainText
+            heading {
+                heading: Grade
+            }
+            layout {
+                sequence: 53
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 103
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column IS_ACTIVE (
+            type: hidden
+            heading {
+                heading: IS ACTIVE
+            }
+            layout {
+                sequence: 63
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 13
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column NATIONALITY (
+            type: plainText
+            heading {
+                heading: Nationality
+            }
+            layout {
+                sequence: 73
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PROJECT_NAME (
+            type: plainText
+            heading {
+                heading: Project
+            }
+            layout {
+                sequence: 23
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column RELIGION (
+            type: plainText
+            heading {
+                heading: Religion
+            }
+            layout {
+                sequence: 83
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ROTATION_ID (
+            type: plainText
+            heading {
+                heading: Rotation ID
+            }
+            layout {
+                sequence: 133
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column VIEW_URL (
+            type: plainText
+            heading {
+                heading: View
+            }
+            layout {
+                sequence: 123
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    {! <a href="#VIEW_URL!ATTR#" class="t-Button t-Button--noLabel t-Button--icon t-Button--link" aria-label="Edit" title="Edit"><span class="fa fa-eye" aria-hidden="true"></span></a> /}
+                    
+                    <a href="#VIEW_URL!ATTR#"
+                       class="ig-action-btn"
+                       title="View">
+                       <span class="fa fa-eye"></span>
+                       View
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DEPARTMENT_NAME (
+                sequence: 5
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 9
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn GRADE_NAME (
+                sequence: 6
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 3
+            )
+
+            displayColumn NAME (
+                sequence: 2
+            )
+
+            displayColumn NATIONALITY (
+                sequence: 7
+            )
+
+            displayColumn PROJECT_NAME (
+                sequence: 4
+            )
+
+            displayColumn RELIGION (
+                sequence: 8
+            )
+
+            displayColumn VIEW_URL (
+                sequence: 10
+            )
+
+        )
+
+    )
+
+    pageItem P30_ACTIVE (
+        type: selectList
+        label {
+            label: Active
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Active;1,Not Active;0
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_DEPARTMENTS (
+        type: selectList
+        label {
+            label: Departments
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @department
+            nullDisplayValue: --All Departments--
+        }
+        layout {
+            sequence: 20
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_LOCATIONS (
+        type: selectList
+        label {
+            label: Locations
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+            nullDisplayValue: --All Locations--
+        }
+        layout {
+            sequence: 30
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_NATONALITIES (
+        type: selectList
+        label {
+            label: Nationalities
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Egyptian;Egyptian,EXPAT;EXPAT
+            nullDisplayValue: --All Nationalities--
+        }
+        layout {
+            sequence: 50
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_PROJECTS (
+        type: selectList
+        label {
+            label: Projects
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @project
+            nullDisplayValue: --All Projects--
+        }
+        layout {
+            sequence: 40
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_RELIGIONS (
+        type: selectList
+        label {
+            label: Religions
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Muslim;Muslim,Christian;Christian
+            nullDisplayValue: --All Religions--
+        }
+        layout {
+            sequence: 60
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P30_ROTATION (
+        type: hidden
+        layout {
+            sequence: 90
+            slot: body
+        }
+    )
+
+    button create-employees (
+        buttonName: CREATE_EMPLOYEES
+        label: Create Employees
+        layout {
+            sequence: 10
+            region: @employees
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1145
+                clearCache: 1145
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: P30_DEPARTMENTS
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: P30_DEPT_VALUE
+            }
+            execution {
+                sequence: 10
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: New
+        execution {
+            sequence: 30
+        }
+        when {
+            selectionType: items
+            items: P30_LOCATIONS
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_2 (
+        name: New
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P30_PROJECTS
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_3 (
+        name: New
+        execution {
+            sequence: 50
+        }
+        when {
+            selectionType: items
+            items: P30_NATONALITIES
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_4 (
+        name: New
+        execution {
+            sequence: 60
+        }
+        when {
+            selectionType: items
+            items: P30_RELIGIONS
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_5 (
+        name: New
+        execution {
+            sequence: 70
+        }
+        when {
+            selectionType: items
+            items: P30_ACTIVE
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-employees-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @employees
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)

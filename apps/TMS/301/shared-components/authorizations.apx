@@ -1,0 +1,15 @@
+authorization tms-authenticated (
+    name: TMS Authenticated
+    type: plSqlFunctionBody
+    settings {
+        plsqlFunctionBody:
+            ```plsql
+            BEGIN
+                RETURN AUTH_PKG.is_authenticated;
+            END;
+            ```
+    }
+    error {
+        errorMessage: Please sign in to access TMS.
+    }
+)

@@ -1,0 +1,948 @@
+page 11 (
+    name: Transactions
+    alias: TRANSACTIONS
+    title: Transactions
+    pageGroup: @attendance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    css {
+        fileUrls: #APP_FILES#style#MIN#.css
+    }
+    security {
+        authorizationScheme: @tms-authenticated
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Transactions
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region filter-region (
+        name: Filter Region
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--stacked
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region no-access-notice (
+        name: No Access
+        type: staticContent
+        source {
+            htmlCode: <p>You do not have permission to read transactions.</p>
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 0
+        }
+    )
+
+    region transactions (
+        name: Transactions
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    t.ID,
+                    e.EMPLOYEE_NUMBER,
+                    e.NAME AS EMPLOYEE_NAME,
+                    l.NAME AS LOCATION_NAME,
+                
+                    CASE t.TYPE
+                        WHEN '0' THEN 'In'
+                        ELSE 'Out'
+                    END AS TRANSACTION_TYPE,
+                
+                    -- TO_CHAR(t."DATE", 'DD-MM-YYYY') AS TRANSACTION_DATE,
+                    -- TO_CHAR(t."DATE", 'HH12:MI AM') AS TRANSACTION_TIME,
+                    TO_CHAR(
+                        FROM_TZ(CAST(t."DATE" AS TIMESTAMP), 'UTC')
+                        AT TIME ZONE 'Africa/Cairo',
+                        'DD-MM-YYYY'
+                    ) AS TRANSACTION_DATE,
+                
+                    TO_CHAR(
+                        FROM_TZ(CAST(t."DATE" AS TIMESTAMP), 'UTC')
+                        AT TIME ZONE 'Africa/Cairo',
+                        'HH24:MI'
+                    ) AS TRANSACTION_TIME,
+                    t.DEVICE_NAME,
+                
+                    APEX_PAGE.GET_URL(
+                        p_page   => 1123,
+                        p_items  => 'P1123_TRANSACTION_ID',
+                        p_values => TO_CHAR(t.ID) 
+                    ) AS EDIT_URL,
+                    'Delete' as DELETE_BUTTON
+                
+                FROM TRANSACTION t
+                
+                JOIN EMPLOYEE e
+                    ON e.ID = t.EMPLOYEE_ID
+                
+                LEFT JOIN LOCATION l
+                    ON l.ID = e.LOCATION_ID
+                
+                WHERE
+                    e.LOCATION_ID IN (
+                        SELECT TO_NUMBER(column_value)
+                        FROM TABLE(APEX_STRING.SPLIT(:APP_USER_LOCATION_IDS, ':'))
+                    )
+                
+                    AND :P11_SUBMIT_FLAG = 'Y'
+                
+                    AND (
+                        :P11_EMPLOYEE_NUMBER IS NULL
+                        OR e.EMPLOYEE_NUMBER = :P11_EMPLOYEE_NUMBER
+                    )
+                
+                    AND (
+                        :P11_FROM IS NULL
+                        OR t."DATE" >= CAST(
+                            FROM_TZ(
+                                CAST(
+                                    TO_DATE(
+                                        :P11_FROM,
+                                        'DD-MON-RR',
+                                        'NLS_DATE_LANGUAGE=ENGLISH'
+                                    ) AS TIMESTAMP
+                                ),
+                                'Africa/Cairo'
+                            ) AT TIME ZONE 'UTC'
+                            AS DATE
+                        )
+                    )
+                
+                    AND (
+                        :P11_TO IS NULL
+                        OR t."DATE" < CAST(
+                            FROM_TZ(
+                                CAST(
+                                    TO_DATE(
+                                        :P11_TO,
+                                        'DD-MON-RR',
+                                        'NLS_DATE_LANGUAGE=ENGLISH'
+                                    ) + 1 AS TIMESTAMP
+                                ),
+                                'Africa/Cairo'
+                            ) AT TIME ZONE 'UTC'
+                            AS DATE
+                        )
+                    )
+                
+                    AND (
+                        :P11_DEPARTMENT IS NULL
+                        OR e.DEPARTMENT_ID = :P11_DEPARTMENT
+                    )
+                
+                    AND (
+                        :P11_GRADE IS NULL
+                        OR e.GRADE_ID = :P11_GRADE
+                    )
+                
+                    AND (
+                        :P11_PROJECT IS NULL
+                        OR e.PROJECT_ID = :P11_PROJECT
+                    )
+                
+                    AND (
+                        :P11_LOCATION IS NULL
+                        OR e.LOCATION_ID = :P11_LOCATION
+                    )
+                
+                ORDER BY
+                    t."DATE" DESC;
+                ```
+            pageItemsToSubmit: [
+                P11_EMPLOYEE_NUMBER
+                P11_LOCATION
+                P11_PROJECT
+                P11_DEPARTMENT
+                P11_GRADE
+                P11_FROM
+                P11_SUBMIT_FLAG
+                P11_TO
+            ]
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: transaction_report
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.CAN_READ_SQL('ReadTransactions') = 1
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000
+        }
+        messages {
+            whenNoDataFound: No matching rows are available in your permitted scope.
+            whenMoreDataFound: Apply filters to reduce the result set before exporting.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 47957578041343099
+        }
+
+        column DELETE_BUTTON (
+            type: plainText
+            heading {
+                heading: "Delete "
+            }
+            layout {
+                sequence: 58
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a 
+                       class="ig-action-btn delete-btn"
+                        data-id="#ID#"
+                        href="#"
+                        >
+                        <span class="fa fa-trash"></span>
+                        Delete
+                    </a>
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DEVICE_NAME (
+            type: plainText
+            heading {
+                heading: Device
+            }
+            layout {
+                sequence: 7
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column EDIT_URL (
+            type: plainText
+            heading {
+                heading: Edit
+            }
+            layout {
+                sequence: 8
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <a href="#EDIT_URL!ATTR#" class="ig-action-btn" aria-label="Edit" title="Edit"><span class="fa fa-edit" aria-hidden="true"></span> Edit</a>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEE_NAME (
+            type: plainText
+            heading {
+                heading: Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EMPLOYEE_NUMBER (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 28
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 18
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LOCATION_NAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 4
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column TRANSACTION_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 38
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TRANSACTION_TIME (
+            type: plainText
+            heading {
+                heading: Time
+            }
+            layout {
+                sequence: 48
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TRANSACTION_TYPE (
+            type: plainText
+            heading {
+                heading: Type
+            }
+            layout {
+                sequence: 5
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DELETE_BUTTON (
+                sequence: 9
+            )
+
+            displayColumn DEVICE_NAME (
+                sequence: 7
+            )
+
+            displayColumn EDIT_URL (
+                sequence: 8
+            )
+
+            displayColumn EMPLOYEE_NAME (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEE_NUMBER (
+                sequence: 1
+            )
+
+            displayColumn LOCATION_NAME (
+                sequence: 3
+            )
+
+            displayColumn TRANSACTION_DATE (
+                sequence: 6
+            )
+
+            displayColumn TRANSACTION_TIME (
+                sequence: 5
+            )
+
+            displayColumn TRANSACTION_TYPE (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    pageItem P11_DEPARTMENT (
+        type: selectList
+        label {
+            label: Department
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @department
+        }
+        layout {
+            sequence: 40
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P11_EMPLOYEE_NUMBER (
+        type: selectOne
+        label {
+            label: Employee Number
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @lov-emp-number
+        }
+        layout {
+            sequence: 10
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P11_FROM (
+        type: datePicker
+        label {
+            label: From
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-RR
+            width: 30
+        }
+    )
+
+    pageItem P11_GRADE (
+        type: selectList
+        label {
+            label: Grade
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @grade
+        }
+        layout {
+            sequence: 50
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P11_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+        }
+        layout {
+            sequence: 20
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P11_PROJECT (
+        type: selectList
+        label {
+            label: Project
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @project
+        }
+        layout {
+            sequence: 30
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P11_SUBMIT_FLAG (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: body
+        }
+    )
+
+    pageItem P11_TO (
+        type: datePicker
+        label {
+            label: To
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @filter-region
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-RR
+            width: 30
+        }
+    )
+
+    button create-transaction (
+        buttonName: CREATE_TRANSACTION
+        label: Create Transaction
+        layout {
+            sequence: 10
+            region: @transactions
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: ig-action-btn
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1122
+                clearCache: 1122
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: AUTH_PKG.HAS_ROLE('1') or AUTH_PKG.HAS_ROLE('2')
+        }
+    )
+
+    button reset (
+        buttonName: Reset
+        label: Reset
+        layout {
+            sequence: 90
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--danger
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button submit (
+        buttonName: Submit
+        label: Submit
+        layout {
+            sequence: 80
+            region: @filter-region
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--success
+                t-Button--stretch
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @reset
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @transactions
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: N
+            }
+            affectedElements {
+                selectionType: items
+                items: P11_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            affectedElements {
+                selectionType: items
+                items: [
+                    P11_EMPLOYEE_NUMBER
+                    P11_LOCATION
+                    P11_PROJECT
+                    P11_DEPARTMENT
+                    P11_GRADE
+                    P11_FROM
+                    P11_TO
+                ]
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: New
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @submit
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @transactions
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: Y
+            }
+            affectedElements {
+                selectionType: items
+                items: P11_SUBMIT_FLAG
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new_2 (
+        name: New
+        execution {
+            sequence: 40
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $(document).on('click', '.delete-btn', function () {
+                    
+                        var id = $(this).data("id");
+                        apex.message.confirm("Are you sure you want to proceed?", function (okPressed) {
+                            if (okPressed) {
+                    
+                                apex.server.process(
+                                    "DELETE_TRANSACTION",
+                                    {
+                                        x01: id
+                                    },
+                                    {
+                                        success: function () {
+                    
+                                            // console.log('ya hamada');
+                                            apex.region("transaction_report").refresh();
+                                        },
+                                        error: function (pError) {
+                                            console.error(pError);
+                                        }
+                                    }
+                                );
+                            }
+                        });
+                    
+                    
+                    
+                    
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-transactions-after-dialog (
+        name: Refresh after dialog close
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @transactions
+        }
+
+        action refresh-report (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @transactions
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process delete-transaction (
+        name: DELETE_TRANSACTION
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_status   VARCHAR2(30);
+                    l_message  VARCHAR2(4000);
+                    l_type varchar2 := 'TRANSACTION';
+                BEGIN
+                    TRANSACTION_API_PKG.delete_manual_transaction(
+                        p_transaction_id => apex_application.g_x01,
+                        p_status         => l_status,
+                        p_message        => l_message
+                    );
+                
+                    AUDIT_PKG.record_event('REFERENCE_TRANSACTION_DELETE', l_type,  apex_application.g_x01, null);
+                
+                    IF l_status = 'REJECTED' THEN
+                        RAISE_APPLICATION_ERROR(
+                            -20001,
+                            l_message
+                        );
+                    END IF;
+                
+                
+                
+                    apex_json.open_object;
+                    apex_json.write('msg', 'ok') ;
+                    apex_json.close_object;
+                END;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 71548426543537235
+        }
+    )
+
+)

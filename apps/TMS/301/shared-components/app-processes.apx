@@ -1,0 +1,10 @@
+appProcess cache-user-location-ids (
+    name: Cache User Location IDs
+    type: executeCode
+    source {
+        plsqlCode: :APP_USER_LOCATION_IDS := AUTH_PKG.accessible_location_ids_csv;
+    }
+    execution {
+        sequence: 10
+    }
+)
