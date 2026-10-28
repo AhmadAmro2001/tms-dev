@@ -1,0 +1,1076 @@
+page 3 (
+    name: Edit_TimeSheet_Transactions
+    alias: EDIT-TIMESHEET-TRANSACTIONS
+    title: Edit_TimeSheet_Transactions
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region edit-timesheet-transactions (
+        name: Edit_TimeSheet_Transactions
+        type: form
+        source {
+            location: localDatabase
+            tableName: TIME_SHEET_CACHE
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+    )
+
+    pageItem P3_APP_USER (
+        type: textField
+        label {
+            label: App User
+            alignment: left
+        }
+        layout {
+            sequence: 280
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_DAY_STATUS (
+        type: textField
+        label {
+            label: Day Status
+            alignment: left
+        }
+        layout {
+            sequence: 180
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: DAY_STATUS
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_DEPARTMENT (
+        type: textField
+        label {
+            label: Department
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: DEPARTMENT
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_EMP_NAME (
+        type: textField
+        label {
+            label: Emp Name
+            alignment: right
+        }
+        layout {
+            sequence: 30
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: EMP_NAME
+            dataType: varchar2
+        }
+    )
+
+    pageItem P3_EMP_NO (
+        type: numberField
+        label {
+            label: Emp No
+            alignment: right
+        }
+        layout {
+            sequence: 20
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: EMP_NO
+            dataType: number
+        }
+    )
+
+    pageItem P3_ID (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @edit-timesheet-transactions
+            slot: regionBody
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: ID
+            dataType: number
+            queryOnly: true
+            primaryKey: true
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P3_LOCATION (
+        type: textField
+        label {
+            label: Location
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: LOCATION
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_MONTH (
+        type: numberField
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: MONTH
+            dataType: number
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_NATIONALITY (
+        type: textField
+        label {
+            label: Nationality
+            alignment: left
+        }
+        layout {
+            sequence: 160
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: NATIONALITY
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_OVERTIME_AFTER_SIX (
+        type: textField
+        label {
+            label: Overtime After Six
+            alignment: left
+        }
+        layout {
+            sequence: 140
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: OVERTIME_AFTER_SIX
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_OVERTIME_BEFORE_SIX (
+        type: textField
+        label {
+            label: Overtime Before Six
+            alignment: left
+        }
+        layout {
+            sequence: 130
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: OVERTIME_BEFORE_SIX
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_OVERTIME_FROM (
+        type: textField
+        label {
+            label: Overtime From
+            alignment: left
+        }
+        layout {
+            sequence: 230
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 20
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: OVERTIME_FROM
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_PERMISSION_DESCRIPTION (
+        type: textarea
+        label {
+            label: Permission Description
+            alignment: left
+        }
+        layout {
+            sequence: 260
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 60
+            height: 4
+        }
+        validation {
+            maxLength: 4000
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: PERMISSION_DESCRIPTION
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_PERMISSION_STATUS (
+        type: textField
+        label {
+            label: Permission Status
+            alignment: left
+        }
+        layout {
+            sequence: 190
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: PERMISSION_STATUS
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_PERMISSION_TYPE_ID (
+        type: numberField
+        label {
+            label: Permission Type Id
+            alignment: left
+        }
+        layout {
+            sequence: 270
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: PERMISSION_TYPE_ID
+            dataType: number
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_PRINTED_FLG (
+        type: numberField
+        label {
+            label: Printed Flg
+            alignment: left
+        }
+        layout {
+            sequence: 220
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: PRINTED_FLG
+            dataType: number
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_PROJECT (
+        type: textField
+        label {
+            label: Project
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: PROJECT
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_RELIGION (
+        type: textField
+        label {
+            label: Religion
+            alignment: left
+        }
+        layout {
+            sequence: 170
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: RELIGION
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_ROTATION_DAY (
+        type: textField
+        label {
+            label: Rotation Day
+            alignment: left
+        }
+        layout {
+            sequence: 210
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: ROTATION_DAY
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_ROTATION_TYPE (
+        type: textField
+        label {
+            label: Rotation Type
+            alignment: left
+        }
+        layout {
+            sequence: 200
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 200
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: ROTATION_TYPE
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_R_P (
+        type: textField
+        label {
+            label: R P
+            alignment: left
+        }
+        layout {
+            sequence: 150
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: R_P
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_SHIFTS (
+        type: popupLov
+        label {
+            label: Shifts
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @shift
+        }
+        layout {
+            sequence: 290
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P3_SHIFT_DURATION (
+        type: numberField
+        label {
+            label: Shift Duration
+            alignment: left
+        }
+        layout {
+            sequence: 250
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: SHIFT_DURATION
+            dataType: number
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_SHIFT_FROM_TIME (
+        type: textField
+        label {
+            label: Shift From Time
+            alignment: left
+        }
+        layout {
+            sequence: 240
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 20
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: SHIFT_FROM_TIME
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P3_TIME_IN (
+        type: textField
+        label {
+            label: Time In
+            alignment: right
+        }
+        layout {
+            sequence: 100
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: TIME_IN
+            dataType: varchar2
+        }
+    )
+
+    pageItem P3_TIME_OUT (
+        type: textField
+        label {
+            label: Time Out
+            alignment: right
+        }
+        layout {
+            sequence: 110
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: TIME_OUT
+            dataType: varchar2
+        }
+    )
+
+    pageItem P3_TRANSACTION_DAY_DATE (
+        type: datePicker
+        label {
+            label: Transaction Day Date
+            alignment: right
+        }
+        layout {
+            sequence: 90
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: TRANSACTION_DAY_DATE
+            dataType: date
+        }
+    )
+
+    pageItem P3_WORKED_HOURS (
+        type: textField
+        label {
+            label: Worked Hours
+            alignment: right
+        }
+        layout {
+            sequence: 120
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: WORKED_HOURS
+            dataType: varchar2
+        }
+    )
+
+    pageItem P3_YEAR (
+        type: numberField
+        label {
+            label: Year
+            alignment: left
+        }
+        layout {
+            sequence: 80
+            region: @edit-timesheet-transactions
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 255
+        }
+        source {
+            formRegion: @edit-timesheet-transactions
+            column: YEAR
+            dataType: number
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction native-dialog-cancel (
+            action: cancelDialog
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 40
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P3_ID
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P3_ID
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P3_ID
+        }
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 84298066779813874
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: CREATE,SAVE,DELETE
+        }
+    )
+
+    process initialize-form-edit-timesheet-transactions (
+        name: Initialize form Edit_TimeSheet_Transactions
+        type: formInitialization
+        formRegion: @edit-timesheet-transactions
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 84297275090813871
+        }
+    )
+
+    process process-form-edit-timesheet-transactions (
+        name: Process form Edit_TimeSheet_Transactions
+        type: formAutoRowProcessing
+        formRegion: @edit-timesheet-transactions
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 84297679383813873
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process save-in-alternate-shift (
+        name: save in alternate shift
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                
+                    TIME_SHEET_REPORT_PKG.INSERT_INTO_ALTERNATE_SHIFT(:P3_EMP_NO, :P3_TRANSACTION_DAY_DATE, :P3_SHIFTS, :APP_USER);
+                
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 75235642140213913
+        }
+    )
+
+    process set-app-user (
+        name: SET_APP_USER
+        type: executeCode
+        source {
+            plsqlCode: :P3_APP_USER := :APP_USER;
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 75235455540213911
+        }
+    )
+
+)

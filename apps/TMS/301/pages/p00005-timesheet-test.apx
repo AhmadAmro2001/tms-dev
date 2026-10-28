@@ -125,7 +125,8 @@ page 5 (
                     t.PERMISSION_STATUS,
                     t.ROTATION_TYPE,
                     t.ROTATION_DAY,
-                    t.OVERTIME_FROM
+                    t.OVERTIME_FROM,
+                    t.ID AS EDIT_URL
                 FROM TIME_SHEET_CACHE t
                 LEFT JOIN EMPLOYEE EMP ON EMP.EMPLOYEE_NUMBER = T.EMP_NO
                 LEFT JOIN DEPARTMENT D ON UPPER(D.NAME) = UPPER(T.DEPARTMENT)
@@ -250,6 +251,33 @@ page 5 (
             }
             advanced {
                 endUserAlias: BQ
+            }
+        )
+
+        column EDIT_URL (
+            type: link
+            heading {
+                heading: Edit
+                alignment: center
+            }
+            layout {
+                sequence: 511
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 3
+                    items: {
+                        P3_ID: #ID#
+                    }
+                }
+                linkText: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: CG
             }
         )
 
@@ -591,7 +619,7 @@ page 5 (
             }
 
             displayColumn DAY_NAME (
-                sequence: 1
+                sequence: 2
             )
 
             displayColumn DAY_STATUS (
@@ -602,12 +630,16 @@ page 5 (
                 sequence: 15
             )
 
+            displayColumn EDIT_URL (
+                sequence: 20
+            )
+
             displayColumn EMP_NAME (
                 sequence: 4
             )
 
             displayColumn EMP_NO (
-                sequence: 2
+                sequence: 1
             )
 
             displayColumn LOCATION (

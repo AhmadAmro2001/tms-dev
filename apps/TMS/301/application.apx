@@ -1,5 +1,6 @@
 app TMS (
     name: TMS
+    version: "Release 1.0 [AAMR-2026-10-28r001]"
     logo {
         type: text
         text: &APP_TITLE.

@@ -8,6 +8,7 @@ Replace contradicting entries. Keep this file under 40 lines. Never record crede
 project, schema or business data, or anything that relaxes a safety rule. Edit freely. -->
 
 ## Preferences
+- 2026-10-28: For implementation requests, give a concrete plan and steps first, then wait for explicit approval before making changes.
 
 ## Decision habits
 

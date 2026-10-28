@@ -45,8 +45,24 @@ page 1135 (
         }
     )
 
+    region shifts-by-day (
+        name: Shifts by Day
+        type: staticContent
+        source {
+            htmlCode: <p>Select one shift for each day in this rotation cycle.</p>
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+    )
+
     pageItem P1135_DAYS (
-        type: textField
+        type: numberField
         label {
             label: Days
             alignment: left
@@ -58,9 +74,12 @@ page 1135 (
             alignment: left
         }
         appearance {
-            template: @/optional-floating
+            template: @/required-floating
             templateOptions: #DEFAULT#
             width: 30
+        }
+        validation {
+            valueRequired: true
         }
         sessionState {
             storage: request
@@ -170,6 +189,726 @@ page 1135 (
         }
     )
 
+    pageItem P1135_SHIFT_01 (
+        type: selectList
+        label {
+            label: Day 1 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 1
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_02 (
+        type: selectList
+        label {
+            label: Day 2 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 2
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_03 (
+        type: selectList
+        label {
+            label: Day 3 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 3
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_04 (
+        type: selectList
+        label {
+            label: Day 4 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 4
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_05 (
+        type: selectList
+        label {
+            label: Day 5 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 5
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_06 (
+        type: selectList
+        label {
+            label: Day 6 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 6
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_07 (
+        type: selectList
+        label {
+            label: Day 7 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 7
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_08 (
+        type: selectList
+        label {
+            label: Day 8 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 8
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_09 (
+        type: selectList
+        label {
+            label: Day 9 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 9
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_10 (
+        type: selectList
+        label {
+            label: Day 10 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 10
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_11 (
+        type: selectList
+        label {
+            label: Day 11 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 11
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_12 (
+        type: selectList
+        label {
+            label: Day 12 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 12
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_13 (
+        type: selectList
+        label {
+            label: Day 13 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 13
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_14 (
+        type: selectList
+        label {
+            label: Day 14 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 14
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_15 (
+        type: selectList
+        label {
+            label: Day 15 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 15
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_16 (
+        type: selectList
+        label {
+            label: Day 16 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 16
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_17 (
+        type: selectList
+        label {
+            label: Day 17 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 17
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_18 (
+        type: selectList
+        label {
+            label: Day 18 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 18
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_19 (
+        type: selectList
+        label {
+            label: Day 19 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 19
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_20 (
+        type: selectList
+        label {
+            label: Day 20 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 20
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_21 (
+        type: selectList
+        label {
+            label: Day 21 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 21
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_22 (
+        type: selectList
+        label {
+            label: Day 22 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 22
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_23 (
+        type: selectList
+        label {
+            label: Day 23 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 23
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_24 (
+        type: selectList
+        label {
+            label: Day 24 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 24
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_25 (
+        type: selectList
+        label {
+            label: Day 25 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 25
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_26 (
+        type: selectList
+        label {
+            label: Day 26 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 26
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_27 (
+        type: selectList
+        label {
+            label: Day 27 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 27
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_28 (
+        type: selectList
+        label {
+            label: Day 28 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 28
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_29 (
+        type: selectList
+        label {
+            label: Day 29 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 29
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P1135_SHIFT_30 (
+        type: selectList
+        label {
+            label: Day 30 Shift
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name, id from shift order by name
+            nullDisplayValue: Select a shift
+        }
+        layout {
+            sequence: 30
+            region: @shifts-by-day
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
     pageItem P1135_START_DATE (
         type: datePicker
         label {
@@ -197,10 +936,14 @@ page 1135 (
     )
 
     pageItem P1135_WORK_TYPE (
-        type: textField
+        type: selectList
         label {
             label: Work Type
             alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Day;Day,Shift;Shift
         }
         layout {
             sequence: 14
@@ -211,7 +954,7 @@ page 1135 (
         appearance {
             template: @/required-floating
             templateOptions: #DEFAULT#
-            width: 30
+            height: 1
         }
         sessionState {
             storage: request
@@ -294,6 +1037,46 @@ page 1135 (
         }
     )
 
+    dynamicAction run-js-P1135_DAYS (
+        name: Show a shift item for each day
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P1135_DAYS
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    const requestedDayCount = Number(apex.item("P1135_DAYS").getValue());
+                    const dayCount = Number.isInteger(requestedDayCount)
+                        && requestedDayCount >= 1
+                        && requestedDayCount <= 30
+                        ? requestedDayCount
+                        : 0;
+                    for (let day = 1; day <= 30; day += 1) {
+                        const suffix = day < 10 ? "0" + day : String(day);
+                        const shiftItem = apex.item("P1135_SHIFT_" + suffix);
+                        if (day <= dayCount) {
+                            shiftItem.show();
+                        } else {
+                            shiftItem.setValue("");
+                            shiftItem.hide();
+                        }
+                    }
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
     process close-dialog (
         name: Close Dialog
         type: closeDialog
@@ -336,11 +1119,32 @@ page 1135 (
             plsqlCode:
                 ```plsql
                 BEGIN
-                    :P1135_IDEMPOTENCY_KEY := nvl(:P1135_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
-                    IF :P1135_ENTITY_ID IS NOT NULL THEN
-                        SELECT NAME, DAYS, START_DATE, IS_VISIBLE, WORK_TYPE, ORA_ROWSCN
-                          INTO :P1135_NAME, :P1135_DAYS, :P1135_START_DATE, :P1135_IS_VISIBLE, :P1135_WORK_TYPE, :P1135_EXPECTED_VERSION
-                          FROM ROTATION_PLAN WHERE ID = :P1135_ENTITY_ID;
+                    IF :REQUEST IS NULL OR :REQUEST NOT IN ('SAVE', 'DELETE') THEN
+                        :P1135_IDEMPOTENCY_KEY := nvl(:P1135_IDEMPOTENCY_KEY, rawtohex(sys_guid()));
+                
+                        FOR day_no IN 1..30 LOOP
+                            APEX_UTIL.SET_SESSION_STATE(
+                                'P1135_SHIFT_' || lpad(to_char(day_no, 'FM90'), 2, '0'),
+                                NULL
+                            );
+                        END LOOP;
+                
+                        IF :P1135_ENTITY_ID IS NOT NULL THEN
+                            SELECT NAME, DAYS, START_DATE, IS_VISIBLE, WORK_TYPE, ORA_ROWSCN
+                              INTO :P1135_NAME, :P1135_DAYS, :P1135_START_DATE, :P1135_IS_VISIBLE, :P1135_WORK_TYPE, :P1135_EXPECTED_VERSION
+                              FROM ROTATION_PLAN WHERE ID = :P1135_ENTITY_ID;
+                
+                            FOR assignment IN (
+                                SELECT rd."DAY" AS DAY_NUMBER, rd.SHIFT_ID
+                                  FROM ROTATION_DAY rd
+                                 WHERE rd.ROTATION_ID = :P1135_ENTITY_ID
+                            ) LOOP
+                                APEX_UTIL.SET_SESSION_STATE(
+                                    'P1135_SHIFT_' || lpad(to_char(assignment.DAY_NUMBER, 'FM90'), 2, '0'),
+                                    to_char(assignment.SHIFT_ID, 'FM9999999990')
+                                );
+                            END LOOP;
+                        END IF;
                     END IF;
                 END;
                 ```
@@ -360,10 +1164,122 @@ page 1135 (
         source {
             plsqlCode:
                 ```plsql
-                DECLARE l_id number; l_status varchar2(30); l_message varchar2(4000); BEGIN
-                    SCHEDULE_API_PKG.upsert_schedule('ROTATION_PLAN', :P1135_ENTITY_ID, null, null, :P1135_NAME, to_date(:P1135_START_DATE, 'YYYY-MM-DD'), null, :P1135_DAYS, null, :P1135_IS_VISIBLE, :P1135_WORK_TYPE, :P1135_EXPECTED_VERSION, :P1135_IDEMPOTENCY_KEY, l_id, l_status, l_message);
-                    IF l_status in ('REJECTED','CONFLICT') THEN raise_application_error(-20001, l_message); END IF;
+                DECLARE
+                    l_id number;
+                    l_day_id number;
+                    l_day_version number;
+                    l_shift_id varchar2(100);
+                    l_item_name varchar2(30);
+                    l_existing_count number;
+                    l_days number;
+                    l_result_id number;
+                    l_status varchar2(30);
+                    l_message varchar2(4000);
+                BEGIN
+                    IF NOT (AUTH_PKG.has_role('1') OR AUTH_PKG.has_role('2')) THEN
+                        raise_application_error(-20001, 'Schedule administration requires role 1 or 2.');
+                    END IF;
+                    IF :P1135_DAYS IS NULL OR NOT regexp_like(trim(:P1135_DAYS), '^[0-9]+$') THEN
+                        raise_application_error(-20001, 'Enter a whole number of days between 1 and 30.');
+                    END IF;
+                    l_days := to_number(:P1135_DAYS);
+                    IF l_days NOT BETWEEN 1 AND 30 THEN
+                        raise_application_error(-20001, 'Enter a whole number of days between 1 and 30.');
+                    END IF;
+                    IF trim(:P1135_NAME) IS NULL OR :P1135_START_DATE IS NULL OR trim(:P1135_WORK_TYPE) IS NULL THEN
+                        raise_application_error(-20001, 'Rotation plan name, start date, and work type are required.');
+                    END IF;
+                
+                    SELECT count(*)
+                      INTO l_existing_count
+                      FROM ROTATION_PLAN
+                     WHERE upper(NAME) = upper(trim(:P1135_NAME))
+                       AND ID <> nvl(:P1135_ENTITY_ID, -1);
+                    IF l_existing_count > 0 THEN
+                        raise_application_error(-20001, 'A rotation plan with this name already exists.');
+                    END IF;
+                
+                    FOR day_no IN 1..l_days LOOP
+                        l_item_name := 'P1135_SHIFT_' || lpad(to_char(day_no, 'FM90'), 2, '0');
+                        l_shift_id := APEX_UTIL.GET_SESSION_STATE(l_item_name);
+                        IF l_shift_id IS NULL OR NOT regexp_like(l_shift_id, '^[0-9]+$') THEN
+                            raise_application_error(-20001, 'Select a shift for Day ' || to_char(day_no) || '.');
+                        END IF;
+                        SELECT count(*)
+                          INTO l_existing_count
+                          FROM SHIFT
+                         WHERE ID = to_number(l_shift_id);
+                        IF l_existing_count = 0 THEN
+                            raise_application_error(-20001, 'The selected shift for Day ' || to_char(day_no) || ' no longer exists.');
+                        END IF;
+                        IF :P1135_ENTITY_ID IS NOT NULL THEN
+                            SELECT count(*)
+                              INTO l_existing_count
+                              FROM ROTATION_DAY
+                             WHERE ROTATION_ID = :P1135_ENTITY_ID
+                               AND "DAY" = day_no;
+                            IF l_existing_count > 1 THEN
+                                raise_application_error(-20001, 'The rotation has duplicate assignments for Day ' || to_char(day_no) || '.');
+                            END IF;
+                        END IF;
+                    END LOOP;
+                
+                    :P1135_IDEMPOTENCY_KEY := rawtohex(sys_guid());
+                    SCHEDULE_API_PKG.upsert_schedule(
+                        'ROTATION_PLAN', :P1135_ENTITY_ID, null, null, :P1135_NAME,
+                        to_date(:P1135_START_DATE, 'YYYY-MM-DD'), null, to_char(l_days, 'FM90'), null,
+                        :P1135_IS_VISIBLE, :P1135_WORK_TYPE, :P1135_EXPECTED_VERSION,
+                        :P1135_IDEMPOTENCY_KEY, l_id, l_status, l_message
+                    );
+                    IF l_status NOT IN ('SUCCESS', 'IDEMPOTENT') THEN
+                        raise_application_error(-20001, l_message);
+                    END IF;
                     :P1135_ENTITY_ID := l_id;
+                    SELECT ORA_ROWSCN
+                      INTO :P1135_EXPECTED_VERSION
+                      FROM ROTATION_PLAN
+                     WHERE ID = l_id;
+                
+                    FOR day_no IN 1..l_days LOOP
+                        l_item_name := 'P1135_SHIFT_' || lpad(to_char(day_no, 'FM90'), 2, '0');
+                        l_shift_id := APEX_UTIL.GET_SESSION_STATE(l_item_name);
+                        l_day_id := NULL;
+                        l_day_version := NULL;
+                        BEGIN
+                            SELECT ID, ORA_ROWSCN
+                              INTO l_day_id, l_day_version
+                              FROM ROTATION_DAY
+                             WHERE ROTATION_ID = l_id
+                               AND "DAY" = day_no;
+                        EXCEPTION
+                            WHEN no_data_found THEN
+                                NULL;
+                        END;
+                
+                        SCHEDULE_API_PKG.upsert_schedule(
+                            'ROTATION_DAY', l_day_id, null, null, null, null, null,
+                            to_char(l_id, 'FM9999999990'), to_number(l_shift_id), to_char(day_no, 'FM90'), null,
+                            l_day_version, :P1135_IDEMPOTENCY_KEY || '-D' || lpad(to_char(day_no, 'FM90'), 2, '0'),
+                            l_result_id, l_status, l_message
+                        );
+                        IF l_status NOT IN ('SUCCESS', 'IDEMPOTENT') THEN
+                            raise_application_error(-20001, l_message);
+                        END IF;
+                    END LOOP;
+                
+                    FOR old_assignment IN (
+                        SELECT ID
+                          FROM ROTATION_DAY
+                         WHERE ROTATION_ID = l_id
+                           AND "DAY" > l_days
+                    ) LOOP
+                        SCHEDULE_API_PKG.delete_schedule(
+                            'ROTATION_DAY', old_assignment.ID, l_status, l_message
+                        );
+                        IF l_status <> 'SUCCESS' THEN
+                            raise_application_error(-20001, l_message);
+                        END IF;
+                    END LOOP;
                 END;
                 ```
         }
